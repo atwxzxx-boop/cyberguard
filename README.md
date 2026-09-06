@@ -85,6 +85,9 @@ For Railway:
 - `/security allow <user>` - Adds a trusted user
 - `/security remove <user>` - Removes a trusted user
 - `/security ban <user> [reason]` - Manually bans a user
+- `/security globalban <user> <pin> [reason]` - Blocks a user across CyberGuard servers
+- `/security globalunban <user> <pin>` - Removes a global block
+- `/security globalstatus` - Shows the global blocklist status
 - `/ticket setup` - Posts the support panel in a channel
 - `/ticket close` - Closes the active ticket
 - `/ticket add <user>` - Adds a user to the ticket

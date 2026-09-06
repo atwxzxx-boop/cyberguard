@@ -14,7 +14,7 @@ import {
   Message,
 } from 'discord.js';
 import { config, validateConfig } from './config';
-import { loadTickets, loadTrustedUserIds, saveTicket, saveTranscript, saveTrustedUserIds, updateTicketStatus } from './db';
+import { loadGlobalBans, loadTickets, loadTrustedUserIds, saveGlobalBans, saveTicket, saveTranscript, saveTrustedUserIds, updateTicketStatus } from './db';
 import {
   createSupportPanelEmbed,
   createSecurityPanelEmbed,
@@ -38,6 +38,7 @@ const client = new Client({
 
 const ticketCounter = new Collection<string, number>();
 const trustedUsers = new Set<string>();
+const globalBans = new Map<string, { userId: string; tag: string; reason: string; createdAt: number }>();
 const suspiciousPatterns = [
   /discord(?:\.gg|app\.com\/invite)\//i,
   /free\s*(?:nitro|steam|gift|reward|skins)/i,
@@ -140,7 +141,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
     return;
   }
 
-  const protectedCommands = new Set(['allow', 'remove', 'ban']);
+  const protectedCommands = new Set(['allow', 'remove', 'ban', 'globalban', 'globalunban']);
   if (protectedCommands.has(subcommand) && interaction.options.getString('pin') !== config.securityPin) {
     await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. This action was not performed.')], ephemeral: true });
     return;
@@ -168,6 +169,70 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
 
     await interaction.reply({ embeds: [embed], ephemeral: true });
     return;
+  }
+
+  if (subcommand === 'globalstatus') {
+    const embed = new EmbedBuilder()
+      .setColor(config.accentColor)
+      .setTitle('🌐 CyberGuard Global Blocklist')
+      .setDescription('Accounts on this list are blocked from every server where CyberGuard has permission to ban.')
+      .addFields(
+        { name: 'Blocked accounts', value: `${globalBans.size}`, inline: true },
+        { name: 'Connected servers', value: `${client.guilds.cache.size}`, inline: true },
+        { name: 'Enforcement', value: 'Active on member join', inline: true },
+      )
+      .setFooter({ text: `${config.serverName} • Restricted security control` })
+      .setTimestamp();
+
+    await interaction.reply({ embeds: [embed], ephemeral: true });
+    return;
+  }
+
+  if (subcommand === 'globalban') {
+    const targetUser = interaction.options.getUser('user', true);
+    const reason = interaction.options.getString('reason') ?? 'Global security block';
+    const record = { userId: targetUser.id, tag: targetUser.tag, reason, createdAt: Date.now() };
+    globalBans.set(targetUser.id, record);
+    await saveGlobalBans([...globalBans.values()]);
+
+    let affectedServers = 0;
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        if (guild.members.me?.permissions.has(PermissionsBitField.Flags.BanMembers)) {
+          await guild.members.ban(targetUser.id, { reason: `CyberGuard global block: ${reason}` });
+          affectedServers += 1;
+        }
+      } catch {
+        // Continue enforcing in other connected servers.
+      }
+    }
+
+    await interaction.reply({
+      embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('🌐 Global Security Block Applied').setDescription(`${targetUser.tag} was added to the CyberGuard global blocklist.`).addFields({ name: 'Servers updated', value: `${affectedServers}`, inline: true }, { name: 'Reason', value: reason, inline: true })],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (subcommand === 'globalunban') {
+    const targetUser = interaction.options.getUser('user', true);
+    globalBans.delete(targetUser.id);
+    await saveGlobalBans([...globalBans.values()]);
+
+    let removedServers = 0;
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        await guild.members.unban(targetUser.id, 'CyberGuard global block removed');
+        removedServers += 1;
+      } catch {
+        // The user may not be banned in every server.
+      }
+    }
+
+    await interaction.reply({
+      embeds: [new EmbedBuilder().setColor(0x57f287).setTitle('🌐 Global Security Block Removed').setDescription(`${targetUser.tag} was removed from the CyberGuard global blocklist.`).addFields({ name: 'Servers updated', value: `${removedServers}`, inline: true })],
+      ephemeral: true,
+    });
   }
 
   if (subcommand === 'allow') {
@@ -469,6 +534,21 @@ client.on('ready', () => {
 client.once('ready', async () => {
   for (const userId of await loadTrustedUserIds()) {
     trustedUsers.add(userId);
+  }
+  for (const record of await loadGlobalBans()) {
+    globalBans.set(record.userId, record);
+  }
+});
+
+client.on('guildMemberAdd', async (member) => {
+  const record = globalBans.get(member.id);
+  if (!record || !member.guild.members.me?.permissions.has(PermissionsBitField.Flags.BanMembers) || !member.bannable) return;
+
+  try {
+    await member.ban({ reason: `CyberGuard global block: ${record.reason}` });
+    await logSecurityEvent(member.guild.id, '🌐 Global Block Enforced', 'A globally blocked account was prevented from joining this server.', { tag: member.user.tag, id: member.id });
+  } catch (error) {
+    console.error('Global block enforcement failed:', error);
   }
 });
 

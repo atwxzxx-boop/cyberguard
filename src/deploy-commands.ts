@@ -77,6 +77,34 @@ const commands = [
     )
     .addSubcommand((subcommand) =>
       subcommand
+        .addUserOption((option) =>
+          option.setName('user').setDescription('The user to block globally').setRequired(true)
+        )
+        .addStringOption((option) =>
+          option.setName('pin').setDescription('Private security PIN').setRequired(true)
+        )
+        .addStringOption((option) =>
+          option.setName('reason').setDescription('Reason for the global ban').setRequired(false)
+        )
+        .setName('globalban')
+        .setDescription('Block a user across every server using CyberGuard')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .addUserOption((option) =>
+          option.setName('user').setDescription('The user to remove from the global blocklist').setRequired(true)
+        )
+        .addStringOption((option) =>
+          option.setName('pin').setDescription('Private security PIN').setRequired(true)
+        )
+        .setName('globalunban')
+        .setDescription('Remove a user from the global CyberGuard blocklist')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('globalstatus').setDescription('Show the global CyberGuard blocklist status')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
         .setName('scan')
         .setDescription('Run a quick security scan summary')
     )
