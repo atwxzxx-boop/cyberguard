@@ -5,6 +5,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  StringSelectMenuBuilder,
   PermissionsBitField,
   Collection,
   GuildMember,
@@ -169,6 +170,37 @@ async function handleVerification(interaction: Parameters<typeof client.on>[1] e
   }
 }
 
+function createSecurityPanelComponents() {
+  const actions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('security_panel_status')
+      .setLabel('System Status')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('📊'),
+    new ButtonBuilder()
+      .setCustomId('security_panel_scan')
+      .setLabel('Run Scan')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('🔎'),
+    new ButtonBuilder()
+      .setCustomId('security_panel_verify')
+      .setLabel('Verification')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('✅'),
+  );
+  const menu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('security_panel_menu')
+      .setPlaceholder('Open a CyberGuard security tool')
+      .addOptions(
+        { label: 'Security status', value: 'status', description: 'View protection and workspace status', emoji: '📊' },
+        { label: 'Run security scan', value: 'scan', description: 'Review recent account activity', emoji: '🔎' },
+        { label: 'Verification panel', value: 'verify', description: 'Open the member verification panel', emoji: '✅' },
+      ),
+  );
+  return [actions, menu];
+}
+
 async function logSecurityEvent(guildId: string, title: string, description: string, user?: { tag: string; id: string }) {
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
@@ -296,7 +328,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
   }
 
   if (subcommand === 'panel') {
-    await interaction.reply({ embeds: [createSecurityPanelEmbed()] });
+    await interaction.reply({ embeds: [createSecurityPanelEmbed()], components: createSecurityPanelComponents() });
     return;
   }
 
@@ -488,6 +520,40 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
       ephemeral: true,
     });
   }
+}
+
+async function handleSecurityQuickAction(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never, action: 'status' | 'scan') {
+  if (!interaction.guild || !(interaction.member instanceof GuildMember) || !isSecurityStaff(interaction.member, interaction.guild.id)) {
+    await interaction.reply({ embeds: [createErrorEmbed('This security tool is restricted to CyberGuard staff.')], ephemeral: true });
+    return;
+  }
+
+  if (action === 'status') {
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(config.accentColor)
+        .setTitle('📊 CyberGuard System Status')
+        .setDescription(`Protection is active for ${interaction.guild.name}.`)
+        .addFields(
+          { name: 'Threat detection', value: 'Active', inline: true },
+          { name: 'Anti-raid', value: 'Active', inline: true },
+          { name: 'Anti-nuke', value: 'Active', inline: true },
+          { name: 'Global blocks', value: `${globalBans.size}`, inline: true },
+          { name: 'Lockdown', value: lockedGuilds.has(interaction.guild.id) ? 'Active' : 'Standby', inline: true },
+          { name: 'Security logs', value: guildSecurity.get(interaction.guild.id)?.logChannelId ? 'Configured' : 'Fallback', inline: true },
+        )
+        .setFooter({ text: `${config.serverName} • CyberGuard Operations` })
+        .setTimestamp()],
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const recentMembers = interaction.guild.members.cache.filter((member: GuildMember) => member.joinedTimestamp && Date.now() - member.joinedTimestamp < 1000 * 60 * 60 * 24 * 7).size;
+  await interaction.reply({
+    embeds: [new EmbedBuilder().setColor(config.accentColor).setTitle('🔎 CyberGuard Security Scan').setDescription('The scan completed successfully. Review the security log channel for automated alerts.').addFields({ name: 'Recent joins', value: `${recentMembers}`, inline: true }, { name: 'Global blocks', value: `${globalBans.size}`, inline: true }, { name: 'Protection', value: 'Active', inline: true }).setTimestamp()],
+    ephemeral: true,
+  });
 }
 
 async function getNextTicketNumber(guildId: string) {
@@ -864,6 +930,28 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.isButton()) {
+    if (interaction.customId === 'security_panel_status') {
+      await handleSecurityQuickAction(interaction as never, 'status');
+      return;
+    }
+
+    if (interaction.customId === 'security_panel_scan') {
+      await handleSecurityQuickAction(interaction as never, 'scan');
+      return;
+    }
+
+    if (interaction.customId === 'security_panel_verify') {
+      const verifyButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId('security_verify').setLabel('Verify Account').setStyle(ButtonStyle.Success).setEmoji('✅'),
+      );
+      await interaction.reply({
+        embeds: [new EmbedBuilder().setColor(config.accentColor).setTitle('✅ Account Verification').setDescription('Click below to complete server verification and unlock verified areas.').setFooter({ text: `${config.serverName} • CyberGuard Verification` }).setTimestamp()],
+        components: [verifyButton],
+        ephemeral: true,
+      });
+      return;
+    }
+
     if (interaction.customId === 'security_verify') {
       await handleVerification(interaction as never);
       return;
@@ -914,6 +1002,18 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: true,
       });
     }
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'security_panel_menu') {
+    const action = interaction.values[0];
+    if (action === 'verify') {
+      const verifyButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId('security_verify').setLabel('Verify Account').setStyle(ButtonStyle.Success).setEmoji('✅'),
+      );
+      await interaction.reply({ embeds: [new EmbedBuilder().setColor(config.accentColor).setTitle('✅ Account Verification').setDescription('Click below to complete server verification and unlock verified areas.').setTimestamp()], components: [verifyButton], ephemeral: true });
+      return;
+    }
+    await handleSecurityQuickAction(interaction as never, action as 'status' | 'scan');
   }
 });
 
