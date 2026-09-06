@@ -169,33 +169,19 @@ const rest = new REST({ version: '10' }).setToken(config.token);
 
 (async () => {
   try {
-    const target = config.guildId
-      ? Routes.applicationGuildCommands(config.clientId, config.guildId)
-      : Routes.applicationCommands(config.clientId);
+    if (!config.guildId) {
+      throw new Error('GUILD_ID is required for guild-scoped command deployment.');
+    }
 
-    console.log(`Registering slash commands in ${config.guildId ? 'guild mode' : 'global mode'}...`);
-
-    await rest.put(target, {
+    console.log('Registering slash commands in guild mode...');
+    await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
       body: commands,
     });
 
     console.log('Slash commands registered successfully.');
+    await rest.put(Routes.applicationCommands(config.clientId), { body: [] });
+    console.log('Stale global slash commands cleared.');
   } catch (error: any) {
-    if (config.guildId && error?.code === 50001) {
-      console.warn('Guild registration failed. Falling back to global command registration...');
-
-      try {
-        await rest.put(Routes.applicationCommands(config.clientId), {
-          body: commands,
-        });
-        console.log('Slash commands registered globally.');
-        return;
-      } catch (fallbackError) {
-        console.error('Failed to register slash commands globally:', fallbackError);
-        return;
-      }
-    }
-
     console.error('Failed to register slash commands:', error);
   }
 })();
