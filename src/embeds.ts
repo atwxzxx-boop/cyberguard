@@ -15,7 +15,9 @@ function applyBranding(embed: EmbedBuilder, footer = 'CyberGuard Security Operat
   embed.setFooter({ text: `${brandName()} • ${footer}` }).setTimestamp();
 
   if (config.logoUrl) {
-    embed.setThumbnail(config.logoUrl);
+    if (config.logoUrl.startsWith('http://') || config.logoUrl.startsWith('https://')) {
+      embed.setThumbnail(config.logoUrl);
+    }
   }
 
   return embed;
