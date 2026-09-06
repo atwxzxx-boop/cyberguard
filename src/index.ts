@@ -27,6 +27,7 @@ import {
   createSuccessEmbed,
   createErrorEmbed,
 } from './embeds';
+import { timingSafeEqual } from 'node:crypto';
 
 validateConfig();
 
@@ -47,6 +48,7 @@ const spamWindows = new Map<string, number[]>();
 const destructiveActions = new Map<string, number[]>();
 const lockedGuilds = new Set<string>();
 const guildSecurity = new Map<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string }>();
+const securityCommandWindows = new Map<string, number[]>();
 const suspiciousPatterns = [
   /discord(?:\.gg|app\.com\/invite)\//i,
   /free\s*(?:nitro|steam|gift|reward|skins)/i,
@@ -62,6 +64,26 @@ const suspiciousPatterns = [
 
 function isTrustedUser(userId: string) {
   return trustedUsers.has(userId);
+}
+
+function isSecurityStaff(member: GuildMember, guildId: string) {
+  const roleId = guildSecurity.get(guildId)?.staffRoleId || config.staffRoleId;
+  return Boolean(roleId && member.roles.cache.has(roleId));
+}
+
+function isValidSecurityPin(input: string | null) {
+  if (!input || !config.securityPin) return false;
+  const supplied = Buffer.from(input);
+  const expected = Buffer.from(config.securityPin);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
+
+function isSecurityCommandRateLimited(userId: string) {
+  const now = Date.now();
+  const recent = (securityCommandWindows.get(userId) ?? []).filter((timestamp) => timestamp > now - 60000);
+  recent.push(now);
+  securityCommandWindows.set(userId, recent);
+  return recent.length > 12;
 }
 
 function isSuspiciousSecurityMessage(message: Message) {
@@ -212,7 +234,7 @@ async function handleSecurityBan(message: Message, reason: string) {
   if (
     message.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
     message.member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
-    (config.staffRoleId && message.member.roles.cache.has(config.staffRoleId))
+    isSecurityStaff(message.member, message.guild.id)
   ) return;
   if (!message.member.manageable || !message.member.bannable) return;
 
@@ -247,6 +269,10 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
 
   const member = interaction.member as GuildMember | null;
   const subcommand = interaction.options.getSubcommand();
+  if (isSecurityCommandRateLimited(interaction.user.id)) {
+    await interaction.reply({ embeds: [createErrorEmbed('Security command rate limit reached. Try again in a minute.')], ephemeral: true });
+    return;
+  }
   if (subcommand === 'setup') {
     if (interaction.options.getString('pin') !== config.securityPin) {
       await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. The security workspace was not created.')], ephemeral: true });
@@ -258,13 +284,13 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
 
   const guildSettings = interaction.guild ? guildSecurity.get(interaction.guild.id) : undefined;
   const securityStaffRoleId = guildSettings?.staffRoleId || config.staffRoleId;
-  if (!member || !securityStaffRoleId || !member.roles.cache.has(securityStaffRoleId)) {
+  if (!member || !securityStaffRoleId || !isSecurityStaff(member, interaction.guild?.id ?? '')) {
     await interaction.reply({ embeds: [createErrorEmbed('Security controls are restricted to the configured security staff role.')], ephemeral: true });
     return;
   }
 
   const protectedCommands = new Set(['allow', 'remove', 'ban', 'globalban', 'globalunban', 'lockdown', 'unlock']);
-  if (protectedCommands.has(subcommand) && interaction.options.getString('pin') !== config.securityPin) {
+  if (protectedCommands.has(subcommand) && !isValidSecurityPin(interaction.options.getString('pin'))) {
     await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. This action was not performed.')], ephemeral: true });
     return;
   }
