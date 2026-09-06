@@ -30,7 +30,7 @@ export function createSupportPanelEmbed() {
     .addFields(
       {
         name: '🎫 Request support',
-        value: 'Create a private ticket and share the details of your request with the support team.',
+        value: 'Choose the support queue that best matches your request. Your private ticket will be routed automatically.',
         inline: true,
       },
       {

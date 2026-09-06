@@ -375,7 +375,10 @@ async function handleTicketMemberAction(interaction: Parameters<typeof client.on
   });
 }
 
-async function handleOpenTicket(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never) {
+async function handleOpenTicket(
+  interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never,
+  ticketType: 'general' | 'network' | 'hr-shr' = 'general'
+) {
   const { guild, user } = interaction;
 
   if (!guild) {
@@ -386,7 +389,13 @@ async function handleOpenTicket(interaction: Parameters<typeof client.on>[1] ext
     return;
   }
 
-  const category = guild.channels.cache.get(config.ticketsCategoryId);
+  const categoryIds = {
+    general: config.generalSupportCategoryId,
+    network: config.networkAssistanceCategoryId,
+    'hr-shr': config.hrShrCategoryId,
+  };
+  const categoryId = categoryIds[ticketType] || config.ticketsCategoryId;
+  const category = guild.channels.cache.get(categoryId);
   if (category?.type !== ChannelType.GuildCategory) {
     await interaction.reply({
       embeds: [createErrorEmbed('The ticket category is not configured correctly.')],
@@ -396,7 +405,8 @@ async function handleOpenTicket(interaction: Parameters<typeof client.on>[1] ext
   }
 
   const ticketNumber = await getNextTicketNumber(guild.id);
-  const channelName = `ticket-${user.username.toLowerCase()}-${ticketNumber}`;
+  const typeSlug = ticketType === 'hr-shr' ? 'hr-shr' : ticketType;
+  const channelName = `ticket-${typeSlug}-${user.username.toLowerCase()}-${ticketNumber}`;
 
   const createdChannel = await guild.channels.create({
     name: channelName,
@@ -431,7 +441,7 @@ async function handleOpenTicket(interaction: Parameters<typeof client.on>[1] ext
     ephemeral: true,
   });
 
-  await logTicketEvent(guild.id, `Ticket #${ticketNumber} created for ${user.tag} in <#${createdChannel.id}>.`);
+  await logTicketEvent(guild.id, `${ticketType.toUpperCase()} ticket #${ticketNumber} created for ${user.tag} in <#${createdChannel.id}>.`);
 }
 
 client.on('ready', () => {
@@ -469,20 +479,20 @@ client.on('interactionCreate', async (interaction) => {
     if (subcommand === 'setup') {
       const panel = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
-          .setCustomId('open_ticket')
-          .setLabel('Request Support')
+          .setCustomId('open_ticket_general')
+          .setLabel('General Support')
           .setStyle(ButtonStyle.Success)
           .setEmoji('🎫'),
         new ButtonBuilder()
-          .setCustomId('view_guidelines')
-          .setLabel('Guidelines')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📘'),
+          .setCustomId('open_ticket_network')
+          .setLabel('Network Assistance')
+          .setStyle(ButtonStyle.Primary)
+          .setEmoji('🌐'),
         new ButtonBuilder()
-          .setCustomId('view_tos')
-          .setLabel('Terms')
+          .setCustomId('open_ticket_hr_shr')
+          .setLabel('HR / SHR')
           .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📄')
+          .setEmoji('👥')
       );
 
       await interaction.reply({
@@ -504,8 +514,13 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.isButton()) {
-    if (interaction.customId === 'open_ticket') {
-      await handleOpenTicket(interaction as never);
+    if (interaction.customId === 'open_ticket' || interaction.customId.startsWith('open_ticket_')) {
+      const ticketType = interaction.customId === 'open_ticket_network'
+        ? 'network'
+        : interaction.customId === 'open_ticket_hr_shr'
+          ? 'hr-shr'
+          : 'general';
+      await handleOpenTicket(interaction as never, ticketType);
       return;
     }
 
