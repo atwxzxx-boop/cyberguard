@@ -16,7 +16,7 @@ import {
   Guild,
 } from 'discord.js';
 import { config, validateConfig } from './config';
-import { loadGlobalBans, loadTickets, loadTrustedUserIds, saveGlobalBans, saveTicket, saveTranscript, saveTrustedUserIds, updateTicketStatus } from './db';
+import { loadGlobalBans, loadGuildSecurity, loadTickets, loadTrustedUserIds, saveGlobalBans, saveGuildSecurity, saveTicket, saveTranscript, saveTrustedUserIds, updateTicketStatus } from './db';
 import {
   createSupportPanelEmbed,
   createSecurityPanelEmbed,
@@ -46,6 +46,7 @@ const joinWindows = new Map<string, number[]>();
 const spamWindows = new Map<string, number[]>();
 const destructiveActions = new Map<string, number[]>();
 const lockedGuilds = new Set<string>();
+const guildSecurity = new Map<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string }>();
 const suspiciousPatterns = [
   /discord(?:\.gg|app\.com\/invite)\//i,
   /free\s*(?:nitro|steam|gift|reward|skins)/i,
@@ -150,7 +151,8 @@ async function logSecurityEvent(guildId: string, title: string, description: str
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
 
-  const targetChannel = guild.channels.cache.get(config.logChannelId) ?? guild.channels.cache.find((channel) => channel.isTextBased() && channel.name.includes('security'));
+  const configuredLogChannelId = guildSecurity.get(guildId)?.logChannelId || config.logChannelId;
+  const targetChannel = guild.channels.cache.get(configuredLogChannelId) ?? guild.channels.cache.find((channel) => channel.isTextBased() && channel.name.includes('security'));
   if (!targetChannel || !targetChannel.isTextBased()) return;
 
   const embed = new EmbedBuilder()
@@ -165,6 +167,42 @@ async function logSecurityEvent(guildId: string, title: string, description: str
     .setTimestamp();
 
   await targetChannel.send({ embeds: [embed] });
+}
+
+async function provisionSecurityWorkspace(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never) {
+  if (!interaction.guild || !(interaction.member instanceof GuildMember) || !interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+    await interaction.reply({ embeds: [createErrorEmbed('Only server managers can create the CyberGuard security workspace.')], ephemeral: true });
+    return;
+  }
+
+  const category = interaction.options.getChannel('category', true);
+  if (category.type !== ChannelType.GuildCategory) {
+    await interaction.reply({ embeds: [createErrorEmbed('Please choose a server category.')], ephemeral: true });
+    return;
+  }
+
+  const guild = interaction.guild;
+  const staffRole = await guild.roles.create({ name: 'CyberGuard Staff', reason: 'CyberGuard security workspace setup' });
+  await interaction.member.roles.add(staffRole, 'CyberGuard security workspace setup');
+  const privateOverwrites = [
+    { id: guild.roles.everyone.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+    { id: staffRole.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages, PermissionsBitField.Flags.ReadMessageHistory] },
+  ];
+  const createSecurityChannel = (name: string) => guild.channels.create({ name, type: ChannelType.GuildText, parent: category.id, permissionOverwrites: privateOverwrites });
+  const [logChannel, blacklistChannel, raidAlertsChannel] = await Promise.all([
+    createSecurityChannel('security-logs'),
+    createSecurityChannel('blacklist'),
+    createSecurityChannel('raid-alerts'),
+  ]);
+  const settings = { staffRoleId: staffRole.id, logChannelId: logChannel.id, blacklistChannelId: blacklistChannel.id, raidAlertsChannelId: raidAlertsChannel.id };
+  guildSecurity.set(guild.id, settings);
+  await saveGuildSecurity(Object.fromEntries(guildSecurity));
+
+  await logSecurityEvent(guild.id, '🛡️ Security Workspace Created', `CyberGuard created the security workspace for ${guild.name}.`);
+  await interaction.reply({
+    embeds: [new EmbedBuilder().setColor(config.accentColor).setTitle('🛡️ CyberGuard Workspace Ready').setDescription('Your server security workspace is configured. CyberGuard will use the generated staff role and channels for protection events.').addFields({ name: 'Staff role', value: `<@&${staffRole.id}>`, inline: true }, { name: 'Security logs', value: `<#${logChannel.id}>`, inline: true }, { name: 'Blacklist', value: `<#${blacklistChannel.id}>`, inline: true }, { name: 'Raid alerts', value: `<#${raidAlertsChannel.id}>`, inline: true }).setTimestamp()],
+    ephemeral: true,
+  });
 }
 
 async function handleSecurityBan(message: Message, reason: string) {
@@ -209,7 +247,18 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
 
   const member = interaction.member as GuildMember | null;
   const subcommand = interaction.options.getSubcommand();
-  if (!member || !config.staffRoleId || !member.roles.cache.has(config.staffRoleId)) {
+  if (subcommand === 'setup') {
+    if (interaction.options.getString('pin') !== config.securityPin) {
+      await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. The security workspace was not created.')], ephemeral: true });
+      return;
+    }
+    await provisionSecurityWorkspace(interaction as never);
+    return;
+  }
+
+  const guildSettings = interaction.guild ? guildSecurity.get(interaction.guild.id) : undefined;
+  const securityStaffRoleId = guildSettings?.staffRoleId || config.staffRoleId;
+  if (!member || !securityStaffRoleId || !member.roles.cache.has(securityStaffRoleId)) {
     await interaction.reply({ embeds: [createErrorEmbed('Security controls are restricted to the configured security staff role.')], ephemeral: true });
     return;
   }
@@ -656,6 +705,9 @@ client.once('ready', async () => {
   }
   for (const record of await loadGlobalBans()) {
     globalBans.set(record.userId, record);
+  }
+  for (const [guildId, settings] of Object.entries(await loadGuildSecurity())) {
+    guildSecurity.set(guildId, settings);
   }
 });
 

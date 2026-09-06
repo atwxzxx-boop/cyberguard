@@ -1,4 +1,4 @@
-import { PermissionsBitField, REST, Routes, SlashCommandBuilder } from 'discord.js';
+import { ChannelType, PermissionsBitField, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { config, validateConfig } from './config';
 
 validateConfig();
@@ -12,6 +12,21 @@ const commands = [
       subcommand
         .setName('panel')
         .setDescription('Post the Security Operations Center panel')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .addChannelOption((option) =>
+          option
+            .setName('category')
+            .setDescription('Category where CyberGuard should create its security channels')
+            .addChannelTypes(ChannelType.GuildCategory)
+            .setRequired(true)
+        )
+        .addStringOption((option) =>
+          option.setName('pin').setDescription('Private security PIN').setRequired(true)
+        )
+        .setName('setup')
+        .setDescription('Create the CyberGuard security workspace in this server')
     )
     .addSubcommand((subcommand) =>
       subcommand

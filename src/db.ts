@@ -8,6 +8,7 @@ const TRANSCRIPTS_DIR = path.join(process.cwd(), 'data', 'transcripts');
 type SecurityState = {
   trustedUserIds: string[];
   globalBans: Array<{ userId: string; tag: string; reason: string; createdAt: number }>;
+  guildSecurity: Record<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string }>;
 };
 
 async function ensureDatabase() {
@@ -101,5 +102,20 @@ export async function saveGlobalBans(globalBans: SecurityState['globalBans']) {
   const raw = await fs.readFile(DB_PATH, 'utf8');
   const parsed = JSON.parse(raw || '{}') as Record<string, unknown>;
   parsed.globalBans = globalBans;
+  await fs.writeFile(DB_PATH, JSON.stringify(parsed, null, 2), 'utf8');
+}
+
+export async function loadGuildSecurity() {
+  await ensureDatabase();
+  const raw = await fs.readFile(DB_PATH, 'utf8');
+  const parsed = JSON.parse(raw || '{}') as SecurityState;
+  return parsed.guildSecurity ?? {};
+}
+
+export async function saveGuildSecurity(guildSecurity: SecurityState['guildSecurity']) {
+  await ensureDatabase();
+  const raw = await fs.readFile(DB_PATH, 'utf8');
+  const parsed = JSON.parse(raw || '{}') as Record<string, unknown>;
+  parsed.guildSecurity = guildSecurity;
   await fs.writeFile(DB_PATH, JSON.stringify(parsed, null, 2), 'utf8');
 }
