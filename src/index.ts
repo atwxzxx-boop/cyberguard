@@ -134,12 +134,17 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'security') return;
 
   const member = interaction.member as GuildMember | null;
-  if (!member || (!member.permissions.has(PermissionsBitField.Flags.ManageGuild) && !member.permissions.has(PermissionsBitField.Flags.Administrator))) {
-    await interaction.reply({ embeds: [createErrorEmbed('Security controls are restricted to server administrators and managers.')], ephemeral: true });
+  const subcommand = interaction.options.getSubcommand();
+  if (!member || !config.staffRoleId || !member.roles.cache.has(config.staffRoleId)) {
+    await interaction.reply({ embeds: [createErrorEmbed('Security controls are restricted to the configured security staff role.')], ephemeral: true });
     return;
   }
 
-  const subcommand = interaction.options.getSubcommand();
+  const protectedCommands = new Set(['allow', 'remove', 'ban']);
+  if (protectedCommands.has(subcommand) && interaction.options.getString('pin') !== config.securityPin) {
+    await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. This action was not performed.')], ephemeral: true });
+    return;
+  }
 
   if (subcommand === 'panel') {
     await interaction.reply({ embeds: [createSecurityPanelEmbed()] });

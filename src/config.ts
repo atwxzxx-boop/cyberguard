@@ -26,6 +26,7 @@ export const config = {
   generalSupportCategoryId: process.env.GENERAL_SUPPORT_CATEGORY_ID || '',
   networkAssistanceCategoryId: process.env.NETWORK_ASSISTANCE_CATEGORY_ID || '',
   hrShrCategoryId: process.env.HR_SHR_CATEGORY_ID || '',
+  securityPin: process.env.SECURITY_PIN || '',
   logChannelId: process.env.LOG_CHANNEL_ID || '',
   serverName: process.env.SERVER_NAME || 'Support Center',
   accentColor: parseAccentColor(process.env.ACCENT_COLOR),
@@ -33,7 +34,7 @@ export const config = {
 };
 
 export function validateConfig() {
-  const required = ['token', 'clientId', 'guildId', 'staffRoleId', 'ticketsCategoryId'];
+  const required = ['token', 'clientId', 'guildId', 'staffRoleId', 'ticketsCategoryId', 'securityPin'];
   const missingRequired = required.filter((key) => !config[key as keyof typeof config]);
 
   if (missingRequired.length > 0) {

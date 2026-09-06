@@ -26,6 +26,12 @@ const commands = [
             .setDescription('The user to trust')
             .setRequired(true)
         )
+        .addStringOption((option) =>
+          option
+            .setName('pin')
+            .setDescription('Private security PIN')
+            .setRequired(true)
+        )
         .setName('allow')
         .setDescription('Allow a trusted user to bypass the security auto-ban checks')
     )
@@ -37,6 +43,12 @@ const commands = [
             .setDescription('The user to remove from trusted users')
             .setRequired(true)
         )
+        .addStringOption((option) =>
+          option
+            .setName('pin')
+            .setDescription('Private security PIN')
+            .setRequired(true)
+        )
         .setName('remove')
         .setDescription('Remove a trusted user')
     )
@@ -46,6 +58,12 @@ const commands = [
           option
             .setName('user')
             .setDescription('The user to ban')
+            .setRequired(true)
+        )
+        .addStringOption((option) =>
+          option
+            .setName('pin')
+            .setDescription('Private security PIN')
             .setRequired(true)
         )
         .addStringOption((option) =>
