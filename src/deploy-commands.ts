@@ -105,6 +105,23 @@ const commands = [
     )
     .addSubcommand((subcommand) =>
       subcommand
+        .addStringOption((option) => option.setName('pin').setDescription('Private security PIN').setRequired(true))
+        .setName('lockdown')
+        .setDescription('Lock server channels against an active raid')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .addStringOption((option) => option.setName('pin').setDescription('Private security PIN').setRequired(true))
+        .setName('unlock')
+        .setDescription('Lift the active server lockdown')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('verify')
+        .setDescription('Post the CyberGuard verification panel')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
         .setName('scan')
         .setDescription('Run a quick security scan summary')
     )

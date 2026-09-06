@@ -53,21 +53,21 @@ export function createSecurityPanelEmbed() {
   const embed = new EmbedBuilder()
     .setColor(colors.primary)
     .setTitle(`🛡️ ${brandName} Security Operations`)
-    .setDescription('**Active protection against scam messages, compromised accounts, and coordinated spam.**')
+    .setDescription('**CyberGuard monitors this server continuously and responds to coordinated threats before they spread.**')
     .addFields(
       {
-        name: '🧠 Detection Layer',
-        value: 'Analyzes high-risk scam language, fake verification prompts, malicious invitations, mass mentions, and spam behavior.',
+        name: '🧠 Threat Detection',
+        value: 'Scam and fake-verification detection, anti-spam controls, suspicious account review, raid burst detection, and persistent global blocklist enforcement.',
         inline: false,
       },
       {
         name: '⚡ Automated Response',
-        value: 'Suspicious messages are removed, evidence is logged, and accounts that meet the security threshold are banned.',
+        value: 'Suspicious content is removed, dangerous accounts can be blocked, raid bursts trigger containment, and destructive audit activity can activate lockdown.',
         inline: false,
       },
       {
         name: '🔐 Staff Controls',
-        value: '`/security status`  •  `/security scan`  •  `/security allow`  •  `/security remove`  •  `/security ban`',
+        value: '`/security status`  •  `/security scan`  •  `/security lockdown`  •  `/security unlock`  •  `/security globalban`  •  `/security globalunban`',
         inline: false,
       },
       {

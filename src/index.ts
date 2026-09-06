@@ -12,6 +12,8 @@ import {
   AttachmentBuilder,
   EmbedBuilder,
   Message,
+  AuditLogEvent,
+  Guild,
 } from 'discord.js';
 import { config, validateConfig } from './config';
 import { loadGlobalBans, loadTickets, loadTrustedUserIds, saveGlobalBans, saveTicket, saveTranscript, saveTrustedUserIds, updateTicketStatus } from './db';
@@ -39,6 +41,10 @@ const client = new Client({
 const ticketCounter = new Collection<string, number>();
 const trustedUsers = new Set<string>();
 const globalBans = new Map<string, { userId: string; tag: string; reason: string; createdAt: number }>();
+const joinWindows = new Map<string, number[]>();
+const spamWindows = new Map<string, number[]>();
+const destructiveActions = new Map<string, number[]>();
+const lockedGuilds = new Set<string>();
 const suspiciousPatterns = [
   /discord(?:\.gg|app\.com\/invite)\//i,
   /free\s*(?:nitro|steam|gift|reward|skins)/i,
@@ -71,6 +77,72 @@ function isSuspiciousSecurityMessage(message: Message) {
   const riskScore = matchedPatterns + (hasLink ? 1 : 0) + (hasMassMentions ? 2 : 0) + (hasUrgency ? 1 : 0) + (repeatedSpam ? 1 : 0);
 
   return riskScore >= 3;
+}
+
+function recentEvents(events: Map<string, number[]>, key: string, windowMs: number) {
+  const cutoff = Date.now() - windowMs;
+  const current = (events.get(key) ?? []).filter((timestamp) => timestamp > cutoff);
+  current.push(Date.now());
+  events.set(key, current);
+  return current.length;
+}
+
+async function setGuildLockdown(guildId: string, enabled: boolean) {
+  const guild = client.guilds.cache.get(guildId);
+  if (!guild) return 0;
+
+  let changedChannels = 0;
+  for (const channel of guild.channels.cache.values()) {
+    if (!channel.isTextBased() || !('permissionOverwrites' in channel)) continue;
+    try {
+      if (enabled) {
+        await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false }, { reason: 'CyberGuard security lockdown' });
+      } else {
+        await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: null }, { reason: 'CyberGuard security lockdown lifted' });
+      }
+      changedChannels += 1;
+    } catch {
+      // Continue if a channel cannot be changed.
+    }
+  }
+
+  if (enabled) lockedGuilds.add(guildId);
+  else lockedGuilds.delete(guildId);
+  return changedChannels;
+}
+
+async function monitorDestructiveAction(guild: Guild | null, auditType: AuditLogEvent, label: string) {
+  if (!guild) return;
+
+  try {
+    const auditLogs = await guild.fetchAuditLogs({ type: auditType, limit: 1 });
+    const entry = auditLogs.entries.first();
+    const executorId = entry?.executor?.id;
+    if (!executorId || executorId === client.user?.id || isTrustedUser(executorId)) return;
+
+    const count = recentEvents(destructiveActions, `${guild.id}:${executorId}`, 30000);
+    await logSecurityEvent(guild.id, '⚠️ Server Change Detected', `${label} was recorded in the audit log.`, { tag: entry.executor?.tag ?? 'Unknown', id: executorId });
+
+    if (count >= config.antiNukeThreshold && !lockedGuilds.has(guild.id)) {
+      const changedChannels = await setGuildLockdown(guild.id, true);
+      await logSecurityEvent(guild.id, '🚨 Anti-Nuke Lockdown', `${count} destructive actions were detected from one executor. Public messaging was restricted across ${changedChannels} channels.`);
+    }
+  } catch (error) {
+    console.error('Audit log security monitor failed:', error);
+  }
+}
+
+async function handleVerification(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never) {
+  if (!interaction.guild || !config.verifiedRoleId || !interaction.member || !(interaction.member instanceof GuildMember)) return;
+  const role = interaction.guild.roles.cache.get(config.verifiedRoleId);
+  if (!role || !interaction.member.manageable) return;
+
+  try {
+    await interaction.member.roles.add(role, 'CyberGuard verification');
+    await interaction.reply({ embeds: [createSuccessEmbed('Verification complete. You now have access to the verified areas of this server.')], ephemeral: true });
+  } catch {
+    await interaction.reply({ embeds: [createErrorEmbed('Verification is not configured correctly. Ask a server administrator to check the verified role.')], ephemeral: true });
+  }
 }
 
 async function logSecurityEvent(guildId: string, title: string, description: string, user?: { tag: string; id: string }) {
@@ -141,7 +213,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
     return;
   }
 
-  const protectedCommands = new Set(['allow', 'remove', 'ban', 'globalban', 'globalunban']);
+  const protectedCommands = new Set(['allow', 'remove', 'ban', 'globalban', 'globalunban', 'lockdown', 'unlock']);
   if (protectedCommands.has(subcommand) && interaction.options.getString('pin') !== config.securityPin) {
     await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. This action was not performed.')], ephemeral: true });
     return;
@@ -149,6 +221,39 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
 
   if (subcommand === 'panel') {
     await interaction.reply({ embeds: [createSecurityPanelEmbed()] });
+    return;
+  }
+
+  if (subcommand === 'verify') {
+    const verifyButton = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId('security_verify')
+        .setLabel('Verify Account')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅'),
+    );
+    const embed = new EmbedBuilder()
+      .setColor(config.accentColor)
+      .setTitle('✅ Server Verification')
+      .setDescription('Click the button below to verify your account and unlock the verified server areas.')
+      .setFooter({ text: `${config.serverName} • CyberGuard Verification` })
+      .setTimestamp();
+    await interaction.reply({ embeds: [embed], components: [verifyButton] });
+    return;
+  }
+
+  if (subcommand === 'lockdown' || subcommand === 'unlock') {
+    const enabled = subcommand === 'lockdown';
+    const changedChannels = await setGuildLockdown(interaction.guild?.id ?? '', enabled);
+    await interaction.reply({
+      embeds: [new EmbedBuilder()
+        .setColor(enabled ? 0xed4245 : 0x57f287)
+        .setTitle(enabled ? '🔒 Security Lockdown Active' : '🔓 Security Lockdown Lifted')
+        .setDescription(enabled ? 'Public message sending has been restricted while staff investigate the incident.' : 'Normal message sending has been restored.')
+        .addFields({ name: 'Channels updated', value: `${changedChannels}`, inline: true }, { name: 'Action', value: enabled ? 'Raid containment' : 'Recovery', inline: true })
+        .setTimestamp()],
+      ephemeral: true,
+    });
     return;
   }
 
@@ -541,15 +646,48 @@ client.once('ready', async () => {
 });
 
 client.on('guildMemberAdd', async (member) => {
-  const record = globalBans.get(member.id);
-  if (!record || !member.guild.members.me?.permissions.has(PermissionsBitField.Flags.BanMembers) || !member.bannable) return;
-
-  try {
-    await member.ban({ reason: `CyberGuard global block: ${record.reason}` });
-    await logSecurityEvent(member.guild.id, '🌐 Global Block Enforced', 'A globally blocked account was prevented from joining this server.', { tag: member.user.tag, id: member.id });
-  } catch (error) {
-    console.error('Global block enforcement failed:', error);
+  const joinCount = recentEvents(joinWindows, member.guild.id, config.raidWindowSeconds * 1000);
+  if (joinCount >= config.raidJoinThreshold && !lockedGuilds.has(member.guild.id)) {
+    const changedChannels = await setGuildLockdown(member.guild.id, true);
+    await logSecurityEvent(member.guild.id, '🚨 Anti-Raid Lockdown', `${joinCount} accounts joined within ${config.raidWindowSeconds} seconds. CyberGuard restricted public messaging.`, { tag: member.user.tag, id: member.id });
+    console.log(`Anti-raid lockdown enabled in ${member.guild.name}; ${changedChannels} channels updated.`);
   }
+
+  const record = globalBans.get(member.id);
+  if (record && member.guild.members.me?.permissions.has(PermissionsBitField.Flags.BanMembers) && member.bannable) {
+    try {
+      await member.ban({ reason: `CyberGuard global block: ${record.reason}` });
+      await logSecurityEvent(member.guild.id, '🌐 Global Block Enforced', 'A globally blocked account was prevented from joining this server.', { tag: member.user.tag, id: member.id });
+    } catch (error) {
+      console.error('Global block enforcement failed:', error);
+    }
+    return;
+  }
+
+  if (member.user.createdTimestamp > 0 && Date.now() - member.user.createdTimestamp < config.altAccountDays * 86400000) {
+    await logSecurityEvent(member.guild.id, '⚠️ New Account Review', `An account younger than ${config.altAccountDays} days joined and was flagged for staff review.`, { tag: member.user.tag, id: member.id });
+  }
+});
+
+client.on('guildMemberRemove', async (member) => {
+  await logSecurityEvent(member.guild.id, '👋 Member Left', `${member.user.tag} left the server.`, { tag: member.user.tag, id: member.id });
+});
+
+client.on('guildBanAdd', async (ban) => {
+  await monitorDestructiveAction(ban.guild, AuditLogEvent.MemberBanAdd, 'A member ban');
+});
+
+client.on('guildMemberRemove', async (member) => {
+  await monitorDestructiveAction(member.guild, AuditLogEvent.MemberKick, 'A member removal or kick');
+});
+
+client.on('channelDelete', async (channel) => {
+  if (channel.isDMBased()) return;
+  await monitorDestructiveAction(channel.guild, AuditLogEvent.ChannelDelete, 'A channel deletion');
+});
+
+client.on('roleDelete', async (role) => {
+  await monitorDestructiveAction(role.guild, AuditLogEvent.RoleDelete, 'A role deletion');
 });
 
 client.on('messageCreate', async (message) => {
@@ -558,6 +696,18 @@ client.on('messageCreate', async (message) => {
 
   if (isSuspiciousSecurityMessage(message)) {
     await handleSecurityBan(message, 'suspicious scam or compromised-account activity detected');
+    return;
+  }
+
+  const spamCount = recentEvents(spamWindows, `${message.guild.id}:${message.author.id}`, 10000);
+  if (spamCount >= 6 && message.member.moderatable) {
+    try {
+      await message.member.timeout(10 * 60 * 1000, 'CyberGuard anti-spam protection');
+      await message.delete();
+      await logSecurityEvent(message.guild.id, '⚠️ Anti-Spam Action', 'A member was temporarily timed out after sending messages too quickly.', { tag: message.author.tag, id: message.author.id });
+    } catch (error) {
+      console.error('Anti-spam action failed:', error);
+    }
   }
 });
 
@@ -622,6 +772,11 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.isButton()) {
+    if (interaction.customId === 'security_verify') {
+      await handleVerification(interaction as never);
+      return;
+    }
+
     if (interaction.customId === 'close_ticket') {
       await handleCloseTicket(interaction as never);
       return;

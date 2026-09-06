@@ -76,6 +76,11 @@ For Railway:
 - `SERVER_NAME`: Custom server name used in the branded support embeds
 - `ACCENT_COLOR`: Brand accent color in hex format, e.g. `5865F2` or `#5865F2`
 - `LOGO_URL`: Optional URL for the server logo used in the support panel
+- `VERIFIED_ROLE_ID`: Role granted by the verification panel
+- `ALT_ACCOUNT_DAYS`: Account age threshold for staff review, default `7`
+- `RAID_JOIN_THRESHOLD`: Joins required to trigger raid containment, default `5`
+- `RAID_WINDOW_SECONDS`: Raid detection window, default `20`
+- `ANTI_NUKE_THRESHOLD`: Destructive actions before lockdown, default `3`
 
 ## Slash Commands
 
