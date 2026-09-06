@@ -22,29 +22,39 @@ function applyBranding(embed: EmbedBuilder, footer = 'CyberGuard Security Operat
 }
 
 export function createSupportPanelEmbed() {
-  return applyBranding(new EmbedBuilder()
+  const embed = applyBranding(new EmbedBuilder()
     .setColor(colors.primary)
     .setAuthor({ name: `${brandName()} Security & Support` })
-    .setTitle('How can we help?')
-    .setDescription('CyberGuard protects this server while providing a private, organized support channel for approved requests.')
+    .setTitle('Support Command Center')
+    .setDescription('CyberGuard protects this server while giving you a direct line to the right support team. Select a queue below to open a private case.')
     .addFields(
       {
-        name: '🎫 Request support',
-        value: 'Choose the support queue that best matches your request. Your private ticket will be routed automatically.',
-        inline: true,
+        name: '🎫 General Support',
+        value: 'Questions, reports, account help, and everyday assistance.',
+        inline: false,
       },
       {
-        name: '🛡️ Protected process',
-        value: 'Your ticket is visible only to you and authorized staff members.',
-        inline: true,
+        name: '🌐 Network Assistance',
+        value: 'Connectivity, access, network, and technical assistance.',
+        inline: false,
       },
       {
-        name: 'Before you submit',
-        value: 'Include a clear summary, relevant screenshots or logs, and any useful IDs. One issue per ticket helps us respond faster.',
+        name: '👥 HR / SHR',
+        value: 'Private people-support requests handled by the HR / SHR team.',
+        inline: false,
+      },
+      {
+        name: '🛡️ Before you open a case',
+        value: 'Share a clear summary, relevant screenshots or logs, and useful IDs. One issue per ticket helps us respond faster.',
         inline: false,
       }
-    )
-    .setColor(colors.primary), 'Support Portal');
+    ), 'Support Command Center');
+
+  if (config.securityBannerUrl.startsWith('http')) {
+    embed.setImage(config.securityBannerUrl);
+  }
+
+  return embed;
 }
 
 export function createSecurityPanelEmbed() {
@@ -79,8 +89,8 @@ export function createSecurityPanelEmbed() {
     .setFooter({ text: `${brandName} • Security Operations Center` })
     .setTimestamp();
 
-  if (config.logoUrl) {
-    embed.setThumbnail(config.logoUrl);
+  if (config.securityBannerUrl.startsWith('http')) {
+    embed.setImage(config.securityBannerUrl);
   }
 
   return embed;
