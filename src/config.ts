@@ -36,6 +36,7 @@ export const config = {
   accentColor: parseAccentColor(process.env.ACCENT_COLOR),
   logoUrl: process.env.LOGO_URL || '',
   securityBannerUrl: process.env.SECURITY_BANNER_URL || process.env.LOGO_URL || '',
+  serverPinChannelId: process.env.SERVER_PIN_CHANNEL_ID || '',
 };
 
 export function validateConfig() {

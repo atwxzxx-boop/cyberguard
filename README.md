@@ -84,6 +84,9 @@ For Railway:
 
 ## Slash Commands
 
+- `/serverpinconfig <invite_link>` - Creates or updates a private `server-updates` channel for CyberGuard Staff
+
+`SERVER_PIN_CHANNEL_ID` can point to an existing private channel, such as a pin channel. After `/serverpinconfig` is used, CyberGuard refreshes the invite embed every 60 seconds. It cannot regenerate an invite belonging to another server unless CyberGuard is installed in that destination server.
 - `/security panel` - Posts the CyberGuard Security Operations Center panel
 - `/security status` - Shows active protection and configuration
 - `/security scan` - Runs a security scan summary

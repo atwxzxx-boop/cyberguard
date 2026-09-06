@@ -18,6 +18,7 @@ import {
   Message,
   AuditLogEvent,
   Guild,
+  GuildBasedChannel,
 } from 'discord.js';
 import { config, validateConfig } from './config';
 import { loadGlobalBans, loadGuildSecurity, loadTickets, loadTrustedUserIds, saveGlobalBans, saveGuildSecurity, saveTicket, saveTranscript, saveTrustedUserIds, updateTicketStatus } from './db';
@@ -25,6 +26,7 @@ import {
   createSupportPanelEmbed,
   createSecurityPanelEmbed,
   createGlobalBanEmbed,
+  createServerUpdateEmbed,
   createTicketOpenedEmbed,
   createTicketCloseEmbed,
   createStaffLogEmbed,
@@ -51,7 +53,8 @@ const joinWindows = new Map<string, number[]>();
 const spamWindows = new Map<string, number[]>();
 const destructiveActions = new Map<string, number[]>();
 const lockedGuilds = new Set<string>();
-const guildSecurity = new Map<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string; configPinHash?: string }>();
+const guildSecurity = new Map<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string; configPinHash?: string; serverPinChannelId?: string; serverInviteLink?: string; serverUpdateMessageId?: string }>();
+const serverPinRefreshTimers = new Map<string, ReturnType<typeof setInterval>>();
 const securityCommandWindows = new Map<string, number[]>();
 const suspiciousPatterns = [
   /discord(?:\.gg|app\.com\/invite)\//i,
@@ -257,6 +260,34 @@ async function logSecurityEvent(guildId: string, title: string, description: str
   await targetChannel.send({ embeds: [embed] });
 }
 
+async function refreshServerPinMessage(guildId: string) {
+  const settings = guildSecurity.get(guildId);
+  if (!settings?.serverPinChannelId || !settings.serverInviteLink) return;
+  const guild = client.guilds.cache.get(guildId);
+  const channel = guild?.channels.cache.get(settings.serverPinChannelId);
+  if (!channel?.isTextBased()) return;
+
+  try {
+    const message = settings.serverUpdateMessageId
+      ? await channel.messages.fetch(settings.serverUpdateMessageId).catch(() => null)
+      : null;
+    const updated = message
+      ? await message.edit({ embeds: [createServerUpdateEmbed(settings.serverInviteLink)] })
+      : await channel.send({ embeds: [createServerUpdateEmbed(settings.serverInviteLink)] });
+    settings.serverUpdateMessageId = updated.id;
+    guildSecurity.set(guildId, settings);
+  } catch (error) {
+    console.error(`Server pin channel refresh failed for ${guildId}:`, error);
+  }
+}
+
+function startServerPinRefresh(guildId: string) {
+  if (serverPinRefreshTimers.has(guildId)) return;
+  const timer = setInterval(() => void refreshServerPinMessage(guildId), 60000);
+  serverPinRefreshTimers.set(guildId, timer);
+  void refreshServerPinMessage(guildId);
+}
+
 async function provisionSecurityWorkspace(
   interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never,
   categoryId?: string,
@@ -303,6 +334,63 @@ async function provisionSecurityWorkspace(
     embeds: [new EmbedBuilder().setColor(config.accentColor).setTitle('🛡️ CyberGuard Workspace Ready').setDescription('Your server security workspace is configured. Save this private configuration PIN; it is shown only in this response and is required to reconfigure this server.').addFields({ name: 'Configuration PIN', value: `||${configPin}||`, inline: false }, { name: 'Staff role', value: `<@&${staffRole.id}>`, inline: true }, { name: 'Security logs', value: `<#${logChannel.id}>`, inline: true }, { name: 'Blacklist', value: `<#${blacklistChannel.id}>`, inline: true }, { name: 'Raid alerts', value: `<#${raidAlertsChannel.id}>`, inline: true }).setTimestamp()],
     ephemeral: true,
   });
+}
+
+async function handleServerPinConfig(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never) {
+  if (!interaction.guild || !(interaction.member instanceof GuildMember) || !isSecurityStaff(interaction.member, interaction.guild.id)) {
+    await interaction.reply({ embeds: [createErrorEmbed('Only the configured CyberGuard Staff role can use this command.')], ephemeral: true });
+    return;
+  }
+
+  const inviteLink = interaction.options.getString('invite_link', true).trim();
+  let inviteUrl: URL;
+  try {
+    inviteUrl = new URL(inviteLink);
+  } catch {
+    await interaction.reply({ embeds: [createErrorEmbed('Please provide a valid Discord invite link.')], ephemeral: true });
+    return;
+  }
+
+  const validHost = inviteUrl.hostname === 'discord.gg' || inviteUrl.hostname === 'discord.com' || inviteUrl.hostname === 'www.discord.com';
+  if (!validHost || !inviteUrl.pathname.startsWith('/invite/')) {
+    await interaction.reply({ embeds: [createErrorEmbed('The link must use the format https://discord.gg/... or https://discord.com/invite/...')], ephemeral: true });
+    return;
+  }
+
+  const settings = guildSecurity.get(interaction.guild.id);
+  const staffRole = settings ? interaction.guild.roles.cache.get(settings.staffRoleId) : null;
+  if (!settings || !staffRole) {
+    await interaction.reply({ embeds: [createErrorEmbed('Run `/security setup` first so CyberGuard can create the restricted staff role and security channels.')], ephemeral: true });
+    return;
+  }
+
+  const existing = interaction.guild.channels.cache.find((channel: GuildBasedChannel) => channel.type === ChannelType.GuildText && channel.name === 'server-updates') as TextChannel | undefined;
+  const logChannel = interaction.guild.channels.cache.get(settings.logChannelId);
+  const channel = existing ?? await interaction.guild.channels.create({
+    name: 'server-updates',
+    type: ChannelType.GuildText,
+    parent: logChannel?.parentId ?? undefined,
+    permissionOverwrites: [
+      { id: interaction.guild.roles.everyone.id, deny: ['ViewChannel'] },
+      { id: staffRole.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+      { id: client.user?.id ?? '', allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] },
+    ],
+  });
+
+  if (existing) {
+    await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, { ViewChannel: false });
+    await channel.permissionOverwrites.edit(staffRole, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
+    if (client.user) {
+      await channel.permissionOverwrites.edit(client.user, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true });
+    }
+  }
+
+  const updateMessage = await channel.send({ embeds: [createServerUpdateEmbed(inviteLink)] });
+  const updatedSettings = { ...settings, serverPinChannelId: channel.id, serverInviteLink: inviteLink, serverUpdateMessageId: updateMessage.id };
+  guildSecurity.set(interaction.guild.id, updatedSettings);
+  await saveGuildSecurity(Object.fromEntries(guildSecurity));
+  startServerPinRefresh(interaction.guild.id);
+  await interaction.reply({ embeds: [createSuccessEmbed(`The private server-updates channel is ready: <#${channel.id}>`)], ephemeral: true });
 }
 
 async function handleSecurityBan(message: Message, reason: string) {
@@ -837,6 +925,9 @@ client.once('ready', async () => {
   }
   for (const [guildId, settings] of Object.entries(await loadGuildSecurity())) {
     guildSecurity.set(guildId, settings);
+    if (settings.serverPinChannelId && settings.serverInviteLink) {
+      startServerPinRefresh(guildId);
+    }
   }
 });
 
@@ -911,6 +1002,11 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.isChatInputCommand() && interaction.commandName === 'security') {
     await handleSecurityCommand(interaction as never);
+    return;
+  }
+
+  if (interaction.isChatInputCommand() && interaction.commandName === 'serverpinconfig') {
+    await handleServerPinConfig(interaction as never);
     return;
   }
 
