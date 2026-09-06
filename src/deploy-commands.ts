@@ -184,18 +184,16 @@ const rest = new REST({ version: '10' }).setToken(config.token);
 
 (async () => {
   try {
-    if (!config.guildId) {
-      throw new Error('GUILD_ID is required for guild-scoped command deployment.');
-    }
-
-    console.log('Registering slash commands in guild mode...');
-    await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), {
+    console.log('Registering slash commands globally for every CyberGuard server...');
+    await rest.put(Routes.applicationCommands(config.clientId), {
       body: commands,
     });
 
-    console.log('Slash commands registered successfully.');
-    await rest.put(Routes.applicationCommands(config.clientId), { body: [] });
-    console.log('Stale global slash commands cleared.');
+    if (config.guildId) {
+      await rest.put(Routes.applicationGuildCommands(config.clientId, config.guildId), { body: [] });
+      console.log('Stale guild slash commands cleared.');
+    }
+    console.log('Global slash commands registered successfully. They may take a few minutes to appear in new servers.');
   } catch (error: any) {
     console.error('Failed to register slash commands:', error);
   }
