@@ -1,0 +1,28 @@
+{
+  "tickets": [
+    {
+      "id": "ticket-1-1546219979542630452",
+      "ticketNumber": 1,
+      "ownerId": "1450177033052356782",
+      "ownerTag": "4.r8z",
+      "channelId": "1546219979542630452",
+      "guildId": "1471994539630792797",
+      "status": "open",
+      "createdAt": 1788717970618,
+      "updatedAt": 1788717970618,
+      "closedAt": null
+    },
+    {
+      "id": "ticket-2-1546225420448563320",
+      "ticketNumber": 2,
+      "ownerId": "1450177033052356782",
+      "ownerTag": "4.r8z",
+      "channelId": "1546225420448563320",
+      "guildId": "1471994539630792797",
+      "status": "open",
+      "createdAt": 1788719267760,
+      "updatedAt": 1788719267760,
+      "closedAt": null
+    }
+  ]
+}

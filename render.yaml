@@ -1,0 +1,26 @@
+services:
+  - type: worker
+    name: cyberguard-discord-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: STAFF_ROLE_ID
+        sync: false
+      - key: TICKETS_CATEGORY_ID
+        sync: false
+      - key: LOG_CHANNEL_ID
+        sync: false
+      - key: SERVER_NAME
+        value: 12.2.2.
+      - key: ACCENT_COLOR
+        value: 5865F2
+      - key: LOGO_URL
+        sync: false

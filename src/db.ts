@@ -1,0 +1,70 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import type { TicketRecord } from './types';
+
+const DB_PATH = path.join(process.cwd(), 'data', 'tickets.json');
+const TRANSCRIPTS_DIR = path.join(process.cwd(), 'data', 'transcripts');
+
+async function ensureDatabase() {
+  await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
+
+  try {
+    await fs.access(DB_PATH);
+  } catch {
+    await fs.writeFile(DB_PATH, JSON.stringify({ tickets: [] }, null, 2), 'utf8');
+  }
+}
+
+async function ensureTranscriptDirectory() {
+  await fs.mkdir(TRANSCRIPTS_DIR, { recursive: true });
+}
+
+export async function loadTickets(): Promise<TicketRecord[]> {
+  await ensureDatabase();
+
+  const raw = await fs.readFile(DB_PATH, 'utf8');
+  const parsed = JSON.parse(raw || '{"tickets":[]}');
+  return Array.isArray(parsed.tickets) ? parsed.tickets : [];
+}
+
+export async function saveTicket(ticket: TicketRecord) {
+  const tickets = await loadTickets();
+  const index = tickets.findIndex((item) => item.id === ticket.id);
+
+  if (index >= 0) {
+    tickets[index] = ticket;
+  } else {
+    tickets.push(ticket);
+  }
+
+  await fs.writeFile(DB_PATH, JSON.stringify({ tickets }, null, 2), 'utf8');
+}
+
+export async function findTicketByChannelId(channelId: string) {
+  const tickets = await loadTickets();
+  return tickets.find((ticket) => ticket.channelId === channelId) ?? null;
+}
+
+export async function updateTicketStatus(channelId: string, status: 'open' | 'closed') {
+  const tickets = await loadTickets();
+  const index = tickets.findIndex((ticket) => ticket.channelId === channelId);
+
+  if (index === -1) return null;
+
+  tickets[index] = {
+    ...tickets[index],
+    status,
+    closedAt: status === 'closed' ? Date.now() : null,
+    updatedAt: Date.now(),
+  };
+
+  await fs.writeFile(DB_PATH, JSON.stringify({ tickets }, null, 2), 'utf8');
+  return tickets[index];
+}
+
+export async function saveTranscript(ticketId: string, content: string) {
+  await ensureTranscriptDirectory();
+  const transcriptPath = path.join(TRANSCRIPTS_DIR, `${ticketId}.txt`);
+  await fs.writeFile(transcriptPath, content, 'utf8');
+  return transcriptPath;
+}
