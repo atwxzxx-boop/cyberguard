@@ -23,7 +23,7 @@ const commands = [
             .setRequired(true)
         )
         .addStringOption((option) =>
-          option.setName('pin').setDescription('Private security PIN').setRequired(true)
+              option.setName('pin').setDescription('Existing private configuration PIN, if reconfiguring').setRequired(false)
         )
         .setName('setup')
         .setDescription('Create the CyberGuard security workspace in this server')
@@ -41,12 +41,6 @@ const commands = [
             .setDescription('The user to trust')
             .setRequired(true)
         )
-        .addStringOption((option) =>
-          option
-            .setName('pin')
-            .setDescription('Private security PIN')
-            .setRequired(true)
-        )
         .setName('allow')
         .setDescription('Allow a trusted user to bypass the security auto-ban checks')
     )
@@ -58,12 +52,6 @@ const commands = [
             .setDescription('The user to remove from trusted users')
             .setRequired(true)
         )
-        .addStringOption((option) =>
-          option
-            .setName('pin')
-            .setDescription('Private security PIN')
-            .setRequired(true)
-        )
         .setName('remove')
         .setDescription('Remove a trusted user')
     )
@@ -73,12 +61,6 @@ const commands = [
           option
             .setName('user')
             .setDescription('The user to ban')
-            .setRequired(true)
-        )
-        .addStringOption((option) =>
-          option
-            .setName('pin')
-            .setDescription('Private security PIN')
             .setRequired(true)
         )
         .addStringOption((option) =>
@@ -96,9 +78,6 @@ const commands = [
           option.setName('user').setDescription('The user to block globally').setRequired(true)
         )
         .addStringOption((option) =>
-          option.setName('pin').setDescription('Private security PIN').setRequired(true)
-        )
-        .addStringOption((option) =>
           option.setName('reason').setDescription('Reason for the global ban').setRequired(false)
         )
         .setName('globalban')
@@ -109,9 +88,6 @@ const commands = [
         .addUserOption((option) =>
           option.setName('user').setDescription('The user to remove from the global blocklist').setRequired(true)
         )
-        .addStringOption((option) =>
-          option.setName('pin').setDescription('Private security PIN').setRequired(true)
-        )
         .setName('globalunban')
         .setDescription('Remove a user from the global CyberGuard blocklist')
     )
@@ -120,13 +96,11 @@ const commands = [
     )
     .addSubcommand((subcommand) =>
       subcommand
-        .addStringOption((option) => option.setName('pin').setDescription('Private security PIN').setRequired(true))
         .setName('lockdown')
         .setDescription('Lock server channels against an active raid')
     )
     .addSubcommand((subcommand) =>
       subcommand
-        .addStringOption((option) => option.setName('pin').setDescription('Private security PIN').setRequired(true))
         .setName('unlock')
         .setDescription('Lift the active server lockdown')
     )

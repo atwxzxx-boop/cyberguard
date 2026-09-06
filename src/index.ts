@@ -31,7 +31,7 @@ import {
   createSuccessEmbed,
   createErrorEmbed,
 } from './embeds';
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 validateConfig();
 
@@ -51,7 +51,7 @@ const joinWindows = new Map<string, number[]>();
 const spamWindows = new Map<string, number[]>();
 const destructiveActions = new Map<string, number[]>();
 const lockedGuilds = new Set<string>();
-const guildSecurity = new Map<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string }>();
+const guildSecurity = new Map<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string; configPinHash?: string }>();
 const securityCommandWindows = new Map<string, number[]>();
 const suspiciousPatterns = [
   /discord(?:\.gg|app\.com\/invite)\//i,
@@ -75,10 +75,15 @@ function isSecurityStaff(member: GuildMember, guildId: string) {
   return Boolean(roleId && member.roles.cache.has(roleId));
 }
 
-function isValidSecurityPin(input: string | null) {
-  if (!input || !config.securityPin) return false;
-  const supplied = Buffer.from(input);
-  const expected = Buffer.from(config.securityPin);
+function hashConfigPin(input: string) {
+  return createHash('sha256').update(input).digest('hex');
+}
+
+function isValidGuildConfigPin(guildId: string, input: string | null) {
+  const storedHash = guildSecurity.get(guildId)?.configPinHash;
+  if (!input || !storedHash) return false;
+  const supplied = Buffer.from(hashConfigPin(input));
+  const expected = Buffer.from(storedHash);
   return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
@@ -254,7 +259,8 @@ async function logSecurityEvent(guildId: string, title: string, description: str
 
 async function provisionSecurityWorkspace(
   interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never,
-  categoryId?: string
+  categoryId?: string,
+  existingPin?: string | null
 ) {
   if (!interaction.guild || !(interaction.member instanceof GuildMember) || !interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
     await interaction.reply({ embeds: [createErrorEmbed('Only server managers can create the CyberGuard security workspace.')], ephemeral: true });
@@ -270,6 +276,12 @@ async function provisionSecurityWorkspace(
   }
 
   const guild = interaction.guild;
+  const currentSettings = guildSecurity.get(guild.id);
+  if (currentSettings?.configPinHash && !isValidGuildConfigPin(guild.id, existingPin ?? null)) {
+    await interaction.reply({ embeds: [createErrorEmbed('Invalid server configuration PIN. No changes were made.')], ephemeral: true });
+    return;
+  }
+  const configPin = randomBytes(12).toString('base64url');
   const staffRole = await guild.roles.create({ name: 'CyberGuard Staff', reason: 'CyberGuard security workspace setup' });
   await interaction.member.roles.add(staffRole, 'CyberGuard security workspace setup');
   const privateOverwrites = [
@@ -282,13 +294,13 @@ async function provisionSecurityWorkspace(
     createSecurityChannel('blacklist'),
     createSecurityChannel('raid-alerts'),
   ]);
-  const settings = { staffRoleId: staffRole.id, logChannelId: logChannel.id, blacklistChannelId: blacklistChannel.id, raidAlertsChannelId: raidAlertsChannel.id };
+  const settings = { staffRoleId: staffRole.id, logChannelId: logChannel.id, blacklistChannelId: blacklistChannel.id, raidAlertsChannelId: raidAlertsChannel.id, configPinHash: hashConfigPin(configPin) };
   guildSecurity.set(guild.id, settings);
   await saveGuildSecurity(Object.fromEntries(guildSecurity));
 
   await logSecurityEvent(guild.id, '🛡️ Security Workspace Created', `CyberGuard created the security workspace for ${guild.name}.`);
   await interaction.reply({
-    embeds: [new EmbedBuilder().setColor(config.accentColor).setTitle('🛡️ CyberGuard Workspace Ready').setDescription('Your server security workspace is configured. CyberGuard will use the generated staff role and channels for protection events.').addFields({ name: 'Staff role', value: `<@&${staffRole.id}>`, inline: true }, { name: 'Security logs', value: `<#${logChannel.id}>`, inline: true }, { name: 'Blacklist', value: `<#${blacklistChannel.id}>`, inline: true }, { name: 'Raid alerts', value: `<#${raidAlertsChannel.id}>`, inline: true }).setTimestamp()],
+    embeds: [new EmbedBuilder().setColor(config.accentColor).setTitle('🛡️ CyberGuard Workspace Ready').setDescription('Your server security workspace is configured. Save this private configuration PIN; it is shown only in this response and is required to reconfigure this server.').addFields({ name: 'Configuration PIN', value: `||${configPin}||`, inline: false }, { name: 'Staff role', value: `<@&${staffRole.id}>`, inline: true }, { name: 'Security logs', value: `<#${logChannel.id}>`, inline: true }, { name: 'Blacklist', value: `<#${blacklistChannel.id}>`, inline: true }, { name: 'Raid alerts', value: `<#${raidAlertsChannel.id}>`, inline: true }).setTimestamp()],
     ephemeral: true,
   });
 }
@@ -340,11 +352,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
     return;
   }
   if (subcommand === 'setup') {
-    if (interaction.options.getString('pin') !== config.securityPin) {
-      await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. The security workspace was not created.')], ephemeral: true });
-      return;
-    }
-    await provisionSecurityWorkspace(interaction as never);
+    await provisionSecurityWorkspace(interaction as never, interaction.options.getChannel('category', true).id, interaction.options.getString('pin'));
     return;
   }
 
@@ -352,12 +360,6 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
   const securityStaffRoleId = guildSettings?.staffRoleId || config.staffRoleId;
   if (!member || !securityStaffRoleId || !isSecurityStaff(member, interaction.guild?.id ?? '')) {
     await interaction.reply({ embeds: [createErrorEmbed('Security controls are restricted to the configured security staff role.')], ephemeral: true });
-    return;
-  }
-
-  const protectedCommands = new Set(['allow', 'remove', 'ban', 'globalban', 'globalunban', 'lockdown', 'unlock']);
-  if (protectedCommands.has(subcommand) && !isValidSecurityPin(interaction.options.getString('pin'))) {
-    await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. This action was not performed.')], ephemeral: true });
     return;
   }
 
@@ -1056,11 +1058,11 @@ client.on('interactionCreate', async (interaction) => {
       await interaction.reply({ embeds: [createErrorEmbed('Only server managers can configure CyberGuard.')], ephemeral: true });
       return;
     }
-    if (!isValidSecurityPin(interaction.fields.getTextInputValue('security_setup_pin'))) {
-      await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. No configuration was changed.')], ephemeral: true });
-      return;
-    }
-    await provisionSecurityWorkspace(interaction as never, interaction.fields.getTextInputValue('security_category_id').trim());
+    await provisionSecurityWorkspace(
+      interaction as never,
+      interaction.fields.getTextInputValue('security_category_id').trim(),
+      interaction.fields.getTextInputValue('security_setup_pin')
+    );
   }
 });
 

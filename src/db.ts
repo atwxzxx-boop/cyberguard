@@ -8,7 +8,7 @@ const TRANSCRIPTS_DIR = path.join(process.cwd(), 'data', 'transcripts');
 type SecurityState = {
   trustedUserIds: string[];
   globalBans: Array<{ userId: string; tag: string; reason: string; createdAt: number }>;
-  guildSecurity: Record<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string }>;
+  guildSecurity: Record<string, { staffRoleId: string; logChannelId: string; blacklistChannelId: string; raidAlertsChannelId: string; configPinHash?: string }>;
 };
 
 async function ensureDatabase() {

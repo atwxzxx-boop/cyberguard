@@ -26,7 +26,6 @@ export const config = {
   generalSupportCategoryId: process.env.GENERAL_SUPPORT_CATEGORY_ID || '',
   networkAssistanceCategoryId: process.env.NETWORK_ASSISTANCE_CATEGORY_ID || '',
   hrShrCategoryId: process.env.HR_SHR_CATEGORY_ID || '',
-  securityPin: process.env.SECURITY_PIN || '',
   verifiedRoleId: process.env.VERIFIED_ROLE_ID || '',
   altAccountDays: Number(process.env.ALT_ACCOUNT_DAYS || 7),
   raidJoinThreshold: Number(process.env.RAID_JOIN_THRESHOLD || 5),
@@ -40,7 +39,7 @@ export const config = {
 };
 
 export function validateConfig() {
-  const required = ['token', 'clientId', 'guildId', 'staffRoleId', 'ticketsCategoryId', 'securityPin'];
+  const required = ['token', 'clientId', 'guildId', 'staffRoleId', 'ticketsCategoryId'];
   const missingRequired = required.filter((key) => !config[key as keyof typeof config]);
 
   if (missingRequired.length > 0) {
