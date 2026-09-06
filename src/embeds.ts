@@ -9,40 +9,42 @@ const colors = {
   neutral: 0x99aab5,
 };
 
-export function createSupportPanelEmbed() {
-  const brandName = config.serverName || 'Support Center';
-  const footerText = `${brandName} Support`;
+const brandName = () => config.serverName || 'CyberGuard';
 
-  const embed = new EmbedBuilder()
-    .setColor(colors.primary)
-    .setTitle(`${brandName}`)
-    .setDescription(`**"Inspired by Nature. Driven by Innovation."**`)
-    .addFields(
-      {
-        name: '🎫 Open a Ticket',
-        value: 'Click the button below to create a private support channel for your issue.',
-        inline: false,
-      },
-      {
-        name: '📋 Before You Submit',
-        value:
-          '• Include your username and a clear summary\n• Add screenshots or logs when needed\n• Keep your request concise but detailed',
-        inline: false,
-      },
-      {
-        name: '✅ What Happens Next?',
-        value: 'A staff member will review your ticket and respond in your private channel.',
-        inline: false,
-      }
-    )
-    .setFooter({ text: `${footerText} • Response times may vary` })
-    .setTimestamp();
+function applyBranding(embed: EmbedBuilder, footer = 'CyberGuard Security Operations') {
+  embed.setFooter({ text: `${brandName()} • ${footer}` }).setTimestamp();
 
   if (config.logoUrl) {
     embed.setThumbnail(config.logoUrl);
   }
 
   return embed;
+}
+
+export function createSupportPanelEmbed() {
+  return applyBranding(new EmbedBuilder()
+    .setColor(colors.primary)
+    .setAuthor({ name: `${brandName()} Support Portal` })
+    .setTitle('How can we help?')
+    .setDescription('Private, organized support for questions, reports, and account assistance.')
+    .addFields(
+      {
+        name: '🎫 Request support',
+        value: 'Create a private ticket and share the details of your request with the support team.',
+        inline: true,
+      },
+      {
+        name: '🛡️ Protected process',
+        value: 'Your ticket is visible only to you and authorized staff members.',
+        inline: true,
+      },
+      {
+        name: 'Before you submit',
+        value: 'Include a clear summary, relevant screenshots or logs, and any useful IDs. One issue per ticket helps us respond faster.',
+        inline: false,
+      }
+    )
+    .setColor(colors.primary), 'Support Portal');
 }
 
 export function createSecurityPanelEmbed() {
@@ -85,69 +87,76 @@ export function createSecurityPanelEmbed() {
 }
 
 export function createTicketOpenedEmbed(user: User, ticketNumber: number) {
-  return new EmbedBuilder()
+  return applyBranding(new EmbedBuilder()
     .setColor(colors.primary)
-    .setTitle('✅ Support Ticket Created')
-    .setDescription(`Thanks for contacting ${config.serverName || 'Support'} — your request is now in progress.`)
+    .setAuthor({ name: `${brandName()} Support` })
+    .setTitle('✅ Ticket received')
+    .setDescription(`Welcome, ${user}. Your private support workspace is ready. A team member will review your request as soon as possible.`)
     .addFields(
       {
-        name: 'Ticket ID',
+        name: 'Ticket reference',
         value: `#${ticketNumber}`,
         inline: true,
       },
       {
-        name: 'Status',
-        value: 'Awaiting staff review',
+        name: 'Current status',
+        value: 'Awaiting review',
         inline: true,
       },
       {
-        name: 'Important',
-        value: 'Please describe your issue clearly and provide any relevant details or screenshots.',
+        name: 'Next step',
+        value: 'Describe the issue clearly, then remain available for staff questions. Please do not open duplicate tickets.',
         inline: false,
       }
     )
-    .setFooter({ text: `${config.serverName || 'Support Center'} • We will get back to you soon` })
-    .setTimestamp();
+    .setColor(colors.primary), 'Ticketing System');
 }
 
 export function createTicketCloseEmbed(user: User, closedBy: GuildMember | User) {
-  return new EmbedBuilder()
+  return applyBranding(new EmbedBuilder()
     .setColor(colors.danger)
-    .setTitle('🔒 Ticket Closed')
-    .setDescription(`This ticket was closed by ${closedBy instanceof User ? closedBy.tag : closedBy.user.tag}.`)
+    .setAuthor({ name: `${brandName()} Support` })
+    .setTitle('🔒 Ticket closed')
+    .setDescription('This support request has been closed and its transcript has been prepared for the staff record.')
     .addFields(
       {
-        name: 'Opened By',
+        name: 'Opened by',
         value: user.tag,
         inline: true,
       },
       {
-        name: 'Closed By',
+        name: 'Closed by',
         value: closedBy instanceof User ? closedBy.tag : closedBy.user.tag,
         inline: true,
-      }
+      },
+      {
+        name: 'Transcript',
+        value: 'A downloadable transcript is attached below for your records.',
+        inline: false,
+      },
     )
-    .setTimestamp();
+    .setColor(colors.danger), 'Ticketing System');
 }
 
 export function createStaffLogEmbed(title: string, description: string) {
-  return new EmbedBuilder()
+  return applyBranding(new EmbedBuilder()
     .setColor(colors.neutral)
-    .setTitle(title)
+    .setAuthor({ name: `${brandName()} Audit Log` })
+    .setTitle(`📋 ${title}`)
     .setDescription(description)
-    .setTimestamp();
+    .setColor(colors.neutral), 'Audit Trail');
 }
 
 export function createErrorEmbed(message: string) {
-  return new EmbedBuilder()
+  return applyBranding(new EmbedBuilder()
     .setColor(colors.danger)
-    .setTitle('❌ Action Failed')
-    .setDescription(message);
+    .setTitle('❌ Action unavailable')
+    .setDescription(message), 'System Message');
 }
 
 export function createSuccessEmbed(message: string) {
-  return new EmbedBuilder()
+  return applyBranding(new EmbedBuilder()
     .setColor(colors.success)
-    .setTitle('✅ Success')
-    .setDescription(message);
+    .setTitle('✅ Completed successfully')
+    .setDescription(message), 'System Message');
 }
