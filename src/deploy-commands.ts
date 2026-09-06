@@ -116,6 +116,17 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('serverpin')
+    .setDescription('Create or update a private server updates channel')
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild.toString())
+    .addStringOption((option) =>
+      option
+        .setName('serverlink')
+        .setDescription('Discord invite link for the server')
+        .setRequired(true)
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('ticket')
     .setDescription('Manage support tickets')
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels.toString())

@@ -342,7 +342,7 @@ async function handleServerPinConfig(interaction: Parameters<typeof client.on>[1
     return;
   }
 
-  const inviteLink = interaction.options.getString('invite_link', true).trim();
+  const inviteLink = interaction.options.getString('serverlink', true).trim();
   let inviteUrl: URL;
   try {
     inviteUrl = new URL(inviteLink);
@@ -1005,7 +1005,7 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
-  if (interaction.isChatInputCommand() && interaction.commandName === 'serverpinconfig') {
+  if (interaction.isChatInputCommand() && interaction.commandName === 'serverpin') {
     await handleServerPinConfig(interaction as never);
     return;
   }
