@@ -406,6 +406,7 @@ async function handleOpenTicket(
 
   const ticketNumber = await getNextTicketNumber(guild.id);
   const typeSlug = ticketType === 'hr-shr' ? 'hr-shr' : ticketType;
+  const typeLabel = ticketType === 'network' ? 'Network Assistance' : ticketType === 'hr-shr' ? 'HR / SHR' : 'General Support';
   const channelName = `ticket-${typeSlug}-${user.username.toLowerCase()}-${ticketNumber}`;
 
   const createdChannel = await guild.channels.create({
@@ -433,7 +434,19 @@ async function handleOpenTicket(
 
   await createdChannel.send({
     content: `${user}, welcome to your support ticket. Please describe your issue and a staff member will assist soon.`,
-    embeds: [createTicketOpenedEmbed(user, ticketNumber)],
+    embeds: [createTicketOpenedEmbed(user, ticketNumber, typeLabel)],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId('close_ticket')
+        .setLabel('Close Ticket')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🔒'),
+      new ButtonBuilder()
+        .setCustomId('ticket_guidelines')
+        .setLabel('Guidelines')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('📘'),
+    )],
   });
 
   await interaction.reply({
@@ -492,7 +505,17 @@ client.on('interactionCreate', async (interaction) => {
           .setCustomId('open_ticket_hr_shr')
           .setLabel('HR / SHR')
           .setStyle(ButtonStyle.Secondary)
-          .setEmoji('👥')
+          .setEmoji('👥'),
+        new ButtonBuilder()
+          .setCustomId('view_guidelines')
+          .setLabel('Guidelines')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('📘'),
+        new ButtonBuilder()
+          .setCustomId('view_tos')
+          .setLabel('Terms')
+          .setStyle(ButtonStyle.Secondary)
+          .setEmoji('📄')
       );
 
       await interaction.reply({
@@ -514,6 +537,19 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.isButton()) {
+    if (interaction.customId === 'close_ticket') {
+      await handleCloseTicket(interaction as never);
+      return;
+    }
+
+    if (interaction.customId === 'ticket_guidelines') {
+      await interaction.reply({
+        embeds: [createSupportPanelEmbed().setTitle('📘 Ticket guidelines').setDescription('Please provide a clear summary, relevant screenshots or logs, and any useful IDs. Keep replies focused on this ticket so staff can resolve it efficiently.')],
+        ephemeral: true,
+      });
+      return;
+    }
+
     if (interaction.customId === 'open_ticket' || interaction.customId.startsWith('open_ticket_')) {
       const ticketType = interaction.customId === 'open_ticket_network'
         ? 'network'

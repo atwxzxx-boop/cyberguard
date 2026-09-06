@@ -86,7 +86,7 @@ export function createSecurityPanelEmbed() {
   return embed;
 }
 
-export function createTicketOpenedEmbed(user: User, ticketNumber: number) {
+export function createTicketOpenedEmbed(user: User, ticketNumber: number, ticketType = 'General Support') {
   return applyBranding(new EmbedBuilder()
     .setColor(colors.primary)
     .setAuthor({ name: `${brandName()} Support` })
@@ -96,6 +96,11 @@ export function createTicketOpenedEmbed(user: User, ticketNumber: number) {
       {
         name: 'Ticket reference',
         value: `#${ticketNumber}`,
+        inline: true,
+      },
+      {
+        name: 'Support queue',
+        value: ticketType,
         inline: true,
       },
       {
