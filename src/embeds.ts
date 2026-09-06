@@ -86,6 +86,26 @@ export function createSecurityPanelEmbed() {
   return embed;
 }
 
+export function createGlobalBanEmbed(user: User, reason: string, affectedServers: number) {
+  const embed = applyBranding(new EmbedBuilder()
+    .setColor(colors.danger)
+    .setAuthor({ name: `${brandName()} Global Trust & Safety` })
+    .setTitle('🌐 Global Security Block')
+    .setDescription('This account has been placed on the CyberGuard global security blocklist.')
+    .addFields(
+      { name: 'Account', value: `${user.tag}\nID: ${user.id}`, inline: false },
+      { name: 'Reason', value: reason, inline: true },
+      { name: 'Servers updated', value: `${affectedServers}`, inline: true },
+      { name: 'What happens next', value: 'CyberGuard will prevent this account from joining participating servers. Contact the server owner if you believe this action was made in error.', inline: false },
+    ), 'Global Enforcement');
+
+  if (config.securityBannerUrl.startsWith('http')) {
+    embed.setImage(config.securityBannerUrl);
+  }
+
+  return embed;
+}
+
 export function createTicketOpenedEmbed(user: User, ticketNumber: number, ticketType = 'General Support') {
   return applyBranding(new EmbedBuilder()
     .setColor(colors.primary)

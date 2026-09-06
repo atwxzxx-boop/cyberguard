@@ -36,6 +36,7 @@ export const config = {
   serverName: process.env.SERVER_NAME || 'Support Center',
   accentColor: parseAccentColor(process.env.ACCENT_COLOR),
   logoUrl: process.env.LOGO_URL || '',
+  securityBannerUrl: process.env.SECURITY_BANNER_URL || process.env.LOGO_URL || '',
 };
 
 export function validateConfig() {

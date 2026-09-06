@@ -20,6 +20,7 @@ import { loadGlobalBans, loadTickets, loadTrustedUserIds, saveGlobalBans, saveTi
 import {
   createSupportPanelEmbed,
   createSecurityPanelEmbed,
+  createGlobalBanEmbed,
   createTicketOpenedEmbed,
   createTicketCloseEmbed,
   createStaffLogEmbed,
@@ -312,8 +313,21 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
       }
     }
 
+    try {
+      await targetUser.send({ embeds: [createGlobalBanEmbed(targetUser, reason, affectedServers)] });
+    } catch {
+      console.warn(`Unable to DM globally blocked user ${targetUser.id}.`);
+    }
+
+    await logSecurityEvent(
+      interaction.guild?.id ?? '',
+      '🌐 Global Security Block Applied',
+      `A global security block was added by ${interaction.user.tag}. Reason: ${reason}`,
+      { tag: targetUser.tag, id: targetUser.id }
+    );
+
     await interaction.reply({
-      embeds: [new EmbedBuilder().setColor(0xed4245).setTitle('🌐 Global Security Block Applied').setDescription(`${targetUser.tag} was added to the CyberGuard global blocklist.`).addFields({ name: 'Servers updated', value: `${affectedServers}`, inline: true }, { name: 'Reason', value: reason, inline: true })],
+      embeds: [createGlobalBanEmbed(targetUser, reason, affectedServers)],
       ephemeral: true,
     });
     return;
