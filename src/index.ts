@@ -201,6 +201,27 @@ function createSecurityPanelComponents() {
   return [actions, menu];
 }
 
+function createSupportPanelComponents() {
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId('open_ticket_general').setLabel('General Support').setStyle(ButtonStyle.Success).setEmoji('🎫'),
+    new ButtonBuilder().setCustomId('open_ticket_network').setLabel('Network Assistance').setStyle(ButtonStyle.Primary).setEmoji('🌐'),
+    new ButtonBuilder().setCustomId('open_ticket_hr_shr').setLabel('HR / SHR').setStyle(ButtonStyle.Secondary).setEmoji('👥'),
+    new ButtonBuilder().setCustomId('view_guidelines').setLabel('Guidelines').setStyle(ButtonStyle.Secondary).setEmoji('📘'),
+    new ButtonBuilder().setCustomId('view_tos').setLabel('Terms').setStyle(ButtonStyle.Secondary).setEmoji('📄'),
+  );
+  const queueMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId('support_queue_menu')
+      .setPlaceholder('Choose a support queue to open a private ticket')
+      .addOptions(
+        { label: 'General Support', value: 'general', description: 'Questions, reports, and everyday assistance', emoji: '🎫' },
+        { label: 'Network Assistance', value: 'network', description: 'Connectivity and technical assistance', emoji: '🌐' },
+        { label: 'HR / SHR', value: 'hr-shr', description: 'Private people-support requests', emoji: '👥' },
+      ),
+  );
+  return [buttons, queueMenu];
+}
+
 async function logSecurityEvent(guildId: string, title: string, description: string, user?: { tag: string; id: string }) {
   const guild = client.guilds.cache.get(guildId);
   if (!guild) return;
@@ -883,37 +904,9 @@ client.on('interactionCreate', async (interaction) => {
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand === 'setup') {
-      const panel = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId('open_ticket_general')
-          .setLabel('General Support')
-          .setStyle(ButtonStyle.Success)
-          .setEmoji('🎫'),
-        new ButtonBuilder()
-          .setCustomId('open_ticket_network')
-          .setLabel('Network Assistance')
-          .setStyle(ButtonStyle.Primary)
-          .setEmoji('🌐'),
-        new ButtonBuilder()
-          .setCustomId('open_ticket_hr_shr')
-          .setLabel('HR / SHR')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('👥'),
-        new ButtonBuilder()
-          .setCustomId('view_guidelines')
-          .setLabel('Guidelines')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📘'),
-        new ButtonBuilder()
-          .setCustomId('view_tos')
-          .setLabel('Terms')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📄')
-      );
-
       await interaction.reply({
         embeds: [createSupportPanelEmbed()],
-        components: [panel],
+        components: createSupportPanelComponents(),
       });
       return;
     }
@@ -1014,6 +1007,10 @@ client.on('interactionCreate', async (interaction) => {
       return;
     }
     await handleSecurityQuickAction(interaction as never, action as 'status' | 'scan');
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'support_queue_menu') {
+    await handleOpenTicket(interaction as never, interaction.values[0] as 'general' | 'network' | 'hr-shr');
   }
 });
 
