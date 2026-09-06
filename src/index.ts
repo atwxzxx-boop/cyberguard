@@ -337,8 +337,9 @@ async function provisionSecurityWorkspace(
 }
 
 async function handleServerPinConfig(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never) {
+  await interaction.deferReply({ ephemeral: true });
   if (!interaction.guild || !(interaction.member instanceof GuildMember) || !isSecurityStaff(interaction.member, interaction.guild.id)) {
-    await interaction.reply({ embeds: [createErrorEmbed('Only the configured CyberGuard Staff role can use this command.')], ephemeral: true });
+    await interaction.editReply({ embeds: [createErrorEmbed('Only the configured CyberGuard Staff role can use this command.')] });
     return;
   }
 
@@ -347,20 +348,20 @@ async function handleServerPinConfig(interaction: Parameters<typeof client.on>[1
   try {
     inviteUrl = new URL(inviteLink);
   } catch {
-    await interaction.reply({ embeds: [createErrorEmbed('Please provide a valid Discord invite link.')], ephemeral: true });
+    await interaction.editReply({ embeds: [createErrorEmbed('Please provide a valid Discord invite link.')] });
     return;
   }
 
   const validHost = inviteUrl.hostname === 'discord.gg' || inviteUrl.hostname === 'discord.com' || inviteUrl.hostname === 'www.discord.com';
   if (!validHost || !inviteUrl.pathname.startsWith('/invite/')) {
-    await interaction.reply({ embeds: [createErrorEmbed('The link must use the format https://discord.gg/... or https://discord.com/invite/...')], ephemeral: true });
+    await interaction.editReply({ embeds: [createErrorEmbed('The link must use the format https://discord.gg/... or https://discord.com/invite/...')] });
     return;
   }
 
   const settings = guildSecurity.get(interaction.guild.id);
   const staffRole = settings ? interaction.guild.roles.cache.get(settings.staffRoleId) : null;
   if (!settings || !staffRole) {
-    await interaction.reply({ embeds: [createErrorEmbed('Run `/security setup` first so CyberGuard can create the restricted staff role and security channels.')], ephemeral: true });
+    await interaction.editReply({ embeds: [createErrorEmbed('Run `/security setup` first so CyberGuard can create the restricted staff role and security channels.')] });
     return;
   }
 
@@ -390,7 +391,7 @@ async function handleServerPinConfig(interaction: Parameters<typeof client.on>[1
   guildSecurity.set(interaction.guild.id, updatedSettings);
   await saveGuildSecurity(Object.fromEntries(guildSecurity));
   startServerPinRefresh(interaction.guild.id);
-  await interaction.reply({ embeds: [createSuccessEmbed(`The private server-updates channel is ready: <#${channel.id}>`)], ephemeral: true });
+  await interaction.editReply({ embeds: [createSuccessEmbed(`The private server-updates channel is ready: <#${channel.id}>`)] });
 }
 
 async function handleSecurityBan(message: Message, reason: string) {
@@ -863,6 +864,8 @@ async function handleOpenTicket(
   const typeLabel = ticketType === 'network' ? 'Network Assistance' : ticketType === 'hr-shr' ? 'HR / SHR' : 'General Support';
   const channelName = `ticket-${typeSlug}-${user.username.toLowerCase()}-${ticketNumber}`;
 
+  await interaction.deferReply({ ephemeral: true });
+
   const createdChannel = await guild.channels.create({
     name: channelName,
     type: ChannelType.GuildText,
@@ -904,9 +907,8 @@ async function handleOpenTicket(
     )],
   });
 
-  await interaction.reply({
+  await interaction.editReply({
     content: `Your ticket has been created: <#${createdChannel.id}>`,
-    ephemeral: true,
   });
 
   await logTicketEvent(guild.id, `${ticketType.toUpperCase()} ticket #${ticketNumber} created for ${user.tag} in <#${createdChannel.id}>.`);
