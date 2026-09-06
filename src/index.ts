@@ -6,6 +6,9 @@ import {
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   PermissionsBitField,
   Collection,
   GuildMember,
@@ -187,6 +190,11 @@ function createSecurityPanelComponents() {
       .setLabel('Verification')
       .setStyle(ButtonStyle.Success)
       .setEmoji('✅'),
+    new ButtonBuilder()
+      .setCustomId('security_panel_config')
+      .setLabel('Configure Server')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('⚙️'),
   );
   const menu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder()
@@ -244,13 +252,18 @@ async function logSecurityEvent(guildId: string, title: string, description: str
   await targetChannel.send({ embeds: [embed] });
 }
 
-async function provisionSecurityWorkspace(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never) {
+async function provisionSecurityWorkspace(
+  interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never,
+  categoryId?: string
+) {
   if (!interaction.guild || !(interaction.member instanceof GuildMember) || !interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
     await interaction.reply({ embeds: [createErrorEmbed('Only server managers can create the CyberGuard security workspace.')], ephemeral: true });
     return;
   }
 
-  const category = interaction.options.getChannel('category', true);
+  const category = categoryId
+    ? interaction.guild.channels.cache.get(categoryId)
+    : interaction.options.getChannel('category', true);
   if (category.type !== ChannelType.GuildCategory) {
     await interaction.reply({ embeds: [createErrorEmbed('Please choose a server category.')], ephemeral: true });
     return;
@@ -766,6 +779,7 @@ async function handleOpenTicket(
     parent: category.id,
     permissionOverwrites: [
       { id: guild.roles.everyone, deny: ['ViewChannel'] },
+      { id: client.user?.id ?? '', allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles'] },
       { id: user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles'] },
     ],
   });
@@ -923,6 +937,30 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.isButton()) {
+    if (interaction.customId === 'security_panel_config') {
+      const modal = new ModalBuilder()
+        .setCustomId('security_config_modal')
+        .setTitle('Configure CyberGuard');
+      const categoryInput = new TextInputBuilder()
+        .setCustomId('security_category_id')
+        .setLabel('Security category ID')
+        .setPlaceholder('Paste the Discord category ID')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+      const pinInput = new TextInputBuilder()
+        .setCustomId('security_setup_pin')
+        .setLabel('Security PIN')
+        .setPlaceholder('Enter the private setup PIN')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+      modal.addComponents(
+        new ActionRowBuilder<TextInputBuilder>().addComponents(categoryInput),
+        new ActionRowBuilder<TextInputBuilder>().addComponents(pinInput),
+      );
+      await interaction.showModal(modal);
+      return;
+    }
+
     if (interaction.customId === 'security_panel_status') {
       await handleSecurityQuickAction(interaction as never, 'status');
       return;
@@ -1011,6 +1049,18 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.isStringSelectMenu() && interaction.customId === 'support_queue_menu') {
     await handleOpenTicket(interaction as never, interaction.values[0] as 'general' | 'network' | 'hr-shr');
+  }
+
+  if (interaction.isModalSubmit() && interaction.customId === 'security_config_modal') {
+    if (!(interaction.member instanceof GuildMember) || !interaction.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) {
+      await interaction.reply({ embeds: [createErrorEmbed('Only server managers can configure CyberGuard.')], ephemeral: true });
+      return;
+    }
+    if (!isValidSecurityPin(interaction.fields.getTextInputValue('security_setup_pin'))) {
+      await interaction.reply({ embeds: [createErrorEmbed('Invalid security PIN. No configuration was changed.')], ephemeral: true });
+      return;
+    }
+    await provisionSecurityWorkspace(interaction as never, interaction.fields.getTextInputValue('security_category_id').trim());
   }
 });
 
