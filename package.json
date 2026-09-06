@@ -1,7 +1,7 @@
 {
-  "name": "discord-ticket-bot",
+  "name": "cyberguard",
   "version": "1.0.0",
-  "description": "Professional Discord ticket bot built with discord.js and TypeScript.",
+  "description": "CyberGuard Discord security bot with anti-scam protection, moderation controls, audit logging, and optional support tickets.",
   "main": "dist/index.js",
   "type": "commonjs",
   "scripts": {

@@ -1,14 +1,17 @@
-# Discord Ticket Bot
+# CyberGuard
 
-A professional Discord support ticket bot with polished embeds, a ticket panel, and admin controls.
+CyberGuard is a Discord security bot with anti-scam detection, automated enforcement, security audit logs, staff controls, and an optional support-ticket module.
 
 ## Features
 
-- Support ticket panel with a branded embed
-- Button-based ticket creation
-- Ticket ownership validation
-- Staff controls for closing tickets
-- Optional logging channel for ticket actions
+- Scam and compromised-account message detection
+- Automatic suspicious-message removal and bans
+- Administrator and staff-role protection
+- Persistent trusted-user allowlist
+- Security status and scan commands
+- Security Operations Center panel
+- Optional support ticket panel with routed queues
+- Ticket transcripts and audit logging
 - Slash command registration workflow
 - PM2-ready production hosting for 24/7 uptime
 
@@ -76,6 +79,12 @@ For Railway:
 
 ## Slash Commands
 
+- `/security panel` - Posts the CyberGuard Security Operations Center panel
+- `/security status` - Shows active protection and configuration
+- `/security scan` - Runs a security scan summary
+- `/security allow <user>` - Adds a trusted user
+- `/security remove <user>` - Removes a trusted user
+- `/security ban <user> [reason]` - Manually bans a user
 - `/ticket setup` - Posts the support panel in a channel
 - `/ticket close` - Closes the active ticket
 - `/ticket add <user>` - Adds a user to the ticket
@@ -83,4 +92,4 @@ For Railway:
 
 ## Notes
 
-This project is intentionally built as a clean starting point for a production-ready ticket bot. You can expand it with transcript storage, moderation integrations, or a database layer later.
+The security layer is the primary product. Tickets remain available as an optional support workflow.

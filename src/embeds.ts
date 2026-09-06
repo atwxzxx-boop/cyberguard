@@ -24,9 +24,9 @@ function applyBranding(embed: EmbedBuilder, footer = 'CyberGuard Security Operat
 export function createSupportPanelEmbed() {
   return applyBranding(new EmbedBuilder()
     .setColor(colors.primary)
-    .setAuthor({ name: `${brandName()} Support Portal` })
+    .setAuthor({ name: `${brandName()} Security & Support` })
     .setTitle('How can we help?')
-    .setDescription('Private, organized support for questions, reports, and account assistance.')
+    .setDescription('CyberGuard protects this server while providing a private, organized support channel for approved requests.')
     .addFields(
       {
         name: '🎫 Request support',

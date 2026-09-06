@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'discord-ticket-bot',
+      name: 'cyberguard',
       script: 'dist/index.js',
       cwd: process.cwd(),
       watch: false,
