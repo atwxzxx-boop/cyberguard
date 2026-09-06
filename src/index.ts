@@ -14,7 +14,7 @@ import {
   Message,
 } from 'discord.js';
 import { config, validateConfig } from './config';
-import { loadTickets, saveTicket, saveTranscript, updateTicketStatus } from './db';
+import { loadTickets, loadTrustedUserIds, saveTicket, saveTranscript, saveTrustedUserIds, updateTicketStatus } from './db';
 import {
   createSupportPanelEmbed,
   createSecurityPanelEmbed,
@@ -63,10 +63,13 @@ function isSuspiciousSecurityMessage(message: Message) {
 
   const mentionCount = message.mentions.users.size + message.mentions.roles.size;
   const repeatedSpam = /(.)\1{8,}/i.test(content);
-  const hasScamPattern = suspiciousPatterns.some((pattern) => pattern.test(content));
-  const shortBurst = content.length < 180 && (mentionCount >= 3 || /\b(?:free|claim|verify|click|gift|nitro|bot)\b/i.test(content));
+  const matchedPatterns = suspiciousPatterns.filter((pattern) => pattern.test(content)).length;
+  const hasLink = /https?:\/\//i.test(content);
+  const hasMassMentions = mentionCount >= 3;
+  const hasUrgency = /\b(?:urgent|immediately|now|limited|last chance)\b/i.test(content);
+  const riskScore = matchedPatterns + (hasLink ? 1 : 0) + (hasMassMentions ? 2 : 0) + (hasUrgency ? 1 : 0) + (repeatedSpam ? 1 : 0);
 
-  return hasScamPattern || repeatedSpam || shortBurst || (mentionCount >= 4 && content.length < 240);
+  return riskScore >= 3;
 }
 
 async function logSecurityEvent(guildId: string, title: string, description: string, user?: { tag: string; id: string }) {
@@ -94,7 +97,11 @@ async function handleSecurityBan(message: Message, reason: string) {
   if (!message.guild || !message.member) return;
   const botMember = message.guild.members.me;
   if (!botMember?.permissions.has(PermissionsBitField.Flags.BanMembers)) return;
-  if (message.member.permissions.has(PermissionsBitField.Flags.Administrator) || message.member.permissions.has(PermissionsBitField.Flags.ManageGuild)) return;
+  if (
+    message.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
+    message.member.permissions.has(PermissionsBitField.Flags.ManageGuild) ||
+    (config.staffRoleId && message.member.roles.cache.has(config.staffRoleId))
+  ) return;
   if (!message.member.manageable || !message.member.bannable) return;
 
   try {
@@ -161,6 +168,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
   if (subcommand === 'allow') {
     const targetUser = interaction.options.getUser('user', true);
     trustedUsers.add(targetUser.id);
+    await saveTrustedUserIds(trustedUsers);
 
     await interaction.reply({
       embeds: [new EmbedBuilder().setColor(0x57f287).setTitle('✅ Trusted User Added').setDescription(`${targetUser.tag} is now trusted and exempt from security auto-bans.`)],
@@ -172,6 +180,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
   if (subcommand === 'remove') {
     const targetUser = interaction.options.getUser('user', true);
     trustedUsers.delete(targetUser.id);
+    await saveTrustedUserIds(trustedUsers);
 
     await interaction.reply({
       embeds: [new EmbedBuilder().setColor(0xfaa61a).setTitle('⚠️ Trusted User Removed').setDescription(`${targetUser.tag} has been removed from the trusted list.`)],
@@ -427,6 +436,12 @@ async function handleOpenTicket(interaction: Parameters<typeof client.on>[1] ext
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user?.tag}`);
+});
+
+client.once('ready', async () => {
+  for (const userId of await loadTrustedUserIds()) {
+    trustedUsers.add(userId);
+  }
 });
 
 client.on('messageCreate', async (message) => {

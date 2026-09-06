@@ -5,6 +5,10 @@ import type { TicketRecord } from './types';
 const DB_PATH = path.join(process.cwd(), 'data', 'tickets.json');
 const TRANSCRIPTS_DIR = path.join(process.cwd(), 'data', 'transcripts');
 
+type SecurityState = {
+  trustedUserIds: string[];
+};
+
 async function ensureDatabase() {
   await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
 
@@ -67,4 +71,19 @@ export async function saveTranscript(ticketId: string, content: string) {
   const transcriptPath = path.join(TRANSCRIPTS_DIR, `${ticketId}.txt`);
   await fs.writeFile(transcriptPath, content, 'utf8');
   return transcriptPath;
+}
+
+export async function loadTrustedUserIds(): Promise<string[]> {
+  await ensureDatabase();
+  const raw = await fs.readFile(DB_PATH, 'utf8');
+  const parsed = JSON.parse(raw || '{}') as SecurityState;
+  return Array.isArray(parsed.trustedUserIds) ? parsed.trustedUserIds : [];
+}
+
+export async function saveTrustedUserIds(userIds: Iterable<string>) {
+  await ensureDatabase();
+  const raw = await fs.readFile(DB_PATH, 'utf8');
+  const parsed = JSON.parse(raw || '{}') as Record<string, unknown>;
+  parsed.trustedUserIds = [...new Set(userIds)];
+  await fs.writeFile(DB_PATH, JSON.stringify(parsed, null, 2), 'utf8');
 }
