@@ -90,6 +90,14 @@ For Railway:
 - `/ticket add <user>` - Adds a user to the ticket
 - `/ticket remove <user>` - Removes a user from the ticket
 
+## Invite CyberGuard
+
+Share this invite link with server owners. They can add CyberGuard without using any security commands; protection starts automatically after installation:
+
+`https://discord.com/oauth2/authorize?client_id=1546214488137670789&scope=bot%20applications.commands&permissions=126100`
+
+The invite requests only the permissions needed for message protection, audit logging, moderation, embeds, and optional tickets. Security and ticket slash commands are restricted by default to server managers and channel managers.
+
 ## Notes
 
 The security layer is the primary product. Tickets remain available as an optional support workflow.

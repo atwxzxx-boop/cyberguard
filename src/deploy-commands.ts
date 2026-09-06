@@ -1,4 +1,4 @@
-import { REST, Routes, SlashCommandBuilder } from 'discord.js';
+import { PermissionsBitField, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { config, validateConfig } from './config';
 
 validateConfig();
@@ -7,6 +7,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName('security')
     .setDescription('Security and anti-scam controls')
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild.toString())
     .addSubcommand((subcommand) =>
       subcommand
         .setName('panel')
@@ -65,6 +66,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName('ticket')
     .setDescription('Manage support tickets')
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels.toString())
     .addSubcommand((subcommand) =>
       subcommand
         .setName('setup')
