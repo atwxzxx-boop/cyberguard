@@ -7,7 +7,6 @@ const commands = [
   new SlashCommandBuilder()
     .setName('security')
     .setDescription('Security and anti-scam controls')
-    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild.toString())
     .addSubcommand((subcommand) =>
       subcommand
         .setName('panel')
