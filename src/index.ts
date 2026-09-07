@@ -343,12 +343,13 @@ async function handleServerPinConfig(interaction: Parameters<typeof client.on>[1
     return;
   }
 
-  const inviteLink = interaction.options.getString('serverlink', true).trim();
+  const rawInviteLink = interaction.options.getString('serverlink', true).trim();
+  const inviteLink = /^https?:\/\//i.test(rawInviteLink) ? rawInviteLink : `https://${rawInviteLink}`;
   let inviteUrl: URL;
   try {
     inviteUrl = new URL(inviteLink);
   } catch {
-    await interaction.editReply({ embeds: [createErrorEmbed('Please provide a valid Discord invite link.')] });
+    await interaction.editReply({ embeds: [createErrorEmbed('Please provide a valid Discord invite link, such as `discord.gg/example` or `https://discord.gg/example`.')] });
     return;
   }
 

@@ -33,17 +33,17 @@ export function createSupportPanelEmbed() {
       {
         name: '🎫 General Support',
         value: 'Questions, reports, account help, and everyday assistance.',
-        inline: false,
+        inline: true,
       },
       {
         name: '🌐 Network Assistance',
         value: 'Connectivity, access, network, and technical assistance.',
-        inline: false,
+        inline: true,
       },
       {
         name: '👥 HR / SHR',
         value: 'Private people-support requests handled by the HR / SHR team.',
-        inline: false,
+        inline: true,
       },
       {
         name: '🛡️ Before you open a case',
@@ -70,17 +70,17 @@ export function createSecurityPanelEmbed() {
       {
         name: '🧠 Threat Detection',
         value: 'Scam and fake-verification detection, anti-spam controls, suspicious account review, raid burst detection, and persistent global blocklist enforcement.',
-        inline: false,
+        inline: true,
       },
       {
         name: '⚡ Automated Response',
         value: 'Suspicious content is removed, dangerous accounts can be blocked, raid bursts trigger containment, and destructive audit activity can activate lockdown.',
-        inline: false,
+        inline: true,
       },
       {
         name: '🔐 Staff Controls',
         value: '`/security status`  •  `/security scan`  •  `/security lockdown`  •  `/security unlock`  •  `/security globalban`  •  `/security globalunban`',
-        inline: false,
+        inline: true,
       },
       {
         name: '📡 Operational Requirements',
@@ -105,10 +105,10 @@ export function createGlobalBanEmbed(user: User, reason: string, affectedServers
     .setTitle('🌐 Global Security Block')
     .setDescription('This account has been placed on the CyberGuard global security blocklist.')
     .addFields(
-      { name: 'Account', value: `${user.tag}\nID: ${user.id}`, inline: false },
+      { name: 'Account', value: `${user.tag}\nID: ${user.id}`, inline: true },
       { name: 'Reason', value: reason, inline: true },
       { name: 'Servers updated', value: `${affectedServers}`, inline: true },
-      { name: 'What happens next', value: 'CyberGuard will prevent this account from joining participating servers. Contact the server owner if you believe this action was made in error.', inline: false },
+      { name: 'Next step', value: 'Contact the server owner if you believe this action was made in error.', inline: false },
     ), 'Global Enforcement');
 
   if (config.securityBannerUrl.startsWith('http')) {
@@ -116,6 +116,18 @@ export function createGlobalBanEmbed(user: User, reason: string, affectedServers
   }
 
   return embed;
+}
+
+export function createServerUpdateEmbed(inviteLink: string) {
+  return applyBranding(new EmbedBuilder()
+    .setColor(colors.primary)
+    .setAuthor({ name: `${brandName()} Private Server Updates` })
+    .setTitle('📡 Server Update Channel')
+    .setDescription('This private channel contains the configured server invite link for authorized CyberGuard staff.')
+    .addFields(
+      { name: 'Server invite', value: inviteLink, inline: true },
+      { name: 'Access policy', value: 'CyberGuard Staff only', inline: true },
+    ), 'Server Configuration');
 }
 
 export function createTicketOpenedEmbed(user: User, ticketNumber: number, ticketType = 'General Support') {
