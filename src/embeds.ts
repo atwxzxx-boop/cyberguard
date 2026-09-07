@@ -199,7 +199,7 @@ export function createStaffLogEmbed(title: string, description: string) {
 export function createErrorEmbed(message: string) {
   return applyBranding(new EmbedBuilder()
     .setColor(colors.danger)
-    .setTitle('❌ Action unavailable')
+    .setTitle('⛔ CyberGuard access denied')
     .setDescription(message), 'System Message');
 }
 

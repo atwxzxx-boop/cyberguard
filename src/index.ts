@@ -433,10 +433,18 @@ async function handleSecurityBan(message: Message, reason: string) {
 }
 
 async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1] extends (arg: infer I) => any ? I : never) {
-  if (!interaction.isChatInputCommand() || interaction.commandName !== 'security') return;
+  if (!interaction.isChatInputCommand()) return;
+  const globalAlias = interaction.commandName === 'gban' || interaction.commandName === 'ungban' || interaction.commandName === 'gbanlist';
+  if (interaction.commandName !== 'security' && !globalAlias) return;
 
   const member = interaction.member as GuildMember | null;
-  const subcommand = interaction.options.getSubcommand();
+  const subcommand = interaction.commandName === 'gban'
+    ? 'globalban'
+    : interaction.commandName === 'ungban'
+      ? 'globalunban'
+      : interaction.commandName === 'gbanlist'
+        ? 'globalstatus'
+        : interaction.options.getSubcommand();
   if (isSecurityCommandRateLimited(interaction.user.id)) {
     await interaction.reply({ embeds: [createErrorEmbed('Security command rate limit reached. Try again in a minute.')], ephemeral: true });
     return;
@@ -449,7 +457,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
   const guildSettings = interaction.guild ? guildSecurity.get(interaction.guild.id) : undefined;
   const securityStaffRoleId = guildSettings?.staffRoleId || config.staffRoleId;
   if (!member || !securityStaffRoleId || !isSecurityStaff(member, interaction.guild?.id ?? '')) {
-    await interaction.reply({ embeds: [createErrorEmbed('Security controls are restricted to the configured security staff role.')], ephemeral: true });
+    await interaction.reply({ embeds: [createErrorEmbed('This action is restricted to the CyberGuard Staff role. Run `/security setup` first in this server, or ask a CyberGuard Staff member to use the command.')], ephemeral: true });
     return;
   }
 
@@ -1003,7 +1011,7 @@ client.on('messageCreate', async (message) => {
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.guild) return;
 
-  if (interaction.isChatInputCommand() && interaction.commandName === 'security') {
+  if (interaction.isChatInputCommand() && ['security', 'gban', 'ungban', 'gbanlist'].includes(interaction.commandName)) {
     await handleSecurityCommand(interaction as never);
     return;
   }

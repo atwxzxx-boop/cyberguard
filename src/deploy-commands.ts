@@ -127,6 +127,24 @@ const commands = [
     )
     .toJSON(),
   new SlashCommandBuilder()
+    .setName('gban')
+    .setDescription('Globally block a user across CyberGuard servers')
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild.toString())
+    .addUserOption((option) => option.setName('user').setDescription('User to globally block').setRequired(true))
+    .addStringOption((option) => option.setName('reason').setDescription('Reason for the global block').setRequired(false))
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('ungban')
+    .setDescription('Remove a user from the CyberGuard global blocklist')
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild.toString())
+    .addUserOption((option) => option.setName('user').setDescription('User to remove from the global blocklist').setRequired(true))
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName('gbanlist')
+    .setDescription('View the CyberGuard global blocklist')
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild.toString())
+    .toJSON(),
+  new SlashCommandBuilder()
     .setName('ticket')
     .setDescription('Manage support tickets')
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels.toString())
