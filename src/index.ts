@@ -26,6 +26,8 @@ import {
   createSupportPanelEmbed,
   createSecurityPanelEmbed,
   createGlobalBanEmbed,
+  createGlobalBanListEmbed,
+  createGlobalBanRemovedEmbed,
   createServerUpdateEmbed,
   createTicketOpenedEmbed,
   createTicketCloseEmbed,
@@ -519,23 +521,12 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
   }
 
   if (subcommand === 'globalstatus') {
-    const embed = new EmbedBuilder()
-      .setColor(config.accentColor)
-      .setTitle('🌐 CyberGuard Global Blocklist')
-      .setDescription('Accounts on this list are blocked from every server where CyberGuard has permission to ban.')
-      .addFields(
-        { name: 'Blocked accounts', value: `${globalBans.size}`, inline: true },
-        { name: 'Connected servers', value: `${client.guilds.cache.size}`, inline: true },
-        { name: 'Enforcement', value: 'Active on member join', inline: true },
-      )
-      .setFooter({ text: `${config.serverName} • Restricted security control` })
-      .setTimestamp();
-
-    await interaction.reply({ embeds: [embed], ephemeral: true });
+    await interaction.reply({ embeds: [createGlobalBanListEmbed([...globalBans.values()])], ephemeral: true });
     return;
   }
 
   if (subcommand === 'globalban') {
+    await interaction.deferReply({ ephemeral: true });
     const targetUser = interaction.options.getUser('user', true);
     const reason = interaction.options.getString('reason') ?? 'Global security block';
     const record = { userId: targetUser.id, tag: targetUser.tag, reason, createdAt: Date.now() };
@@ -567,14 +558,20 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
       { tag: targetUser.tag, id: targetUser.id }
     );
 
-    await interaction.reply({
+    const blacklistChannelId = interaction.guild ? guildSecurity.get(interaction.guild.id)?.blacklistChannelId : undefined;
+    const blacklistChannel = interaction.guild?.channels.cache.get(blacklistChannelId ?? '');
+    if (blacklistChannel?.isTextBased()) {
+      await blacklistChannel.send({ embeds: [createGlobalBanEmbed(targetUser, reason, affectedServers)] }).catch(() => undefined);
+    }
+
+    await interaction.editReply({
       embeds: [createGlobalBanEmbed(targetUser, reason, affectedServers)],
-      ephemeral: true,
     });
     return;
   }
 
   if (subcommand === 'globalunban') {
+    await interaction.deferReply({ ephemeral: true });
     const targetUser = interaction.options.getUser('user', true);
     globalBans.delete(targetUser.id);
     await saveGlobalBans([...globalBans.values()]);
@@ -589,10 +586,7 @@ async function handleSecurityCommand(interaction: Parameters<typeof client.on>[1
       }
     }
 
-    await interaction.reply({
-      embeds: [new EmbedBuilder().setColor(0x57f287).setTitle('🌐 Global Security Block Removed').setDescription(`${targetUser.tag} was removed from the CyberGuard global blocklist.`).addFields({ name: 'Servers updated', value: `${removedServers}`, inline: true })],
-      ephemeral: true,
-    });
+    await interaction.editReply({ embeds: [createGlobalBanRemovedEmbed(targetUser, removedServers)] });
   }
 
   if (subcommand === 'allow') {

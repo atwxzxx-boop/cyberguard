@@ -118,6 +118,38 @@ export function createGlobalBanEmbed(user: User, reason: string, affectedServers
   return embed;
 }
 
+export function createGlobalBanListEmbed(entries: Array<{ tag: string; userId: string; reason: string; createdAt: number }>) {
+  const preview = entries.slice(-10).reverse();
+  const value = preview.length > 0
+    ? preview.map((entry) => `• **${entry.tag}** \`${entry.userId}\`\n  ${entry.reason} • <t:${Math.floor(entry.createdAt / 1000)}:R>`).join('\n')
+    : 'The CyberGuard global blocklist is currently empty.';
+
+  return applyBranding(new EmbedBuilder()
+    .setColor(colors.neutral)
+    .setAuthor({ name: `${brandName()} Global Trust & Safety` })
+    .setTitle('🌐 Global Blocklist')
+    .setDescription('Accounts listed here are blocked from participating CyberGuard servers where ban permissions are available.')
+    .addFields(
+      { name: 'Active blocks', value: `${entries.length}`, inline: true },
+      { name: 'Displayed', value: `${preview.length}`, inline: true },
+      { name: 'Policy', value: 'Staff-managed', inline: true },
+      { name: 'Recent entries', value, inline: false },
+    ), 'Global Enforcement');
+}
+
+export function createGlobalBanRemovedEmbed(user: User, removedServers: number) {
+  return applyBranding(new EmbedBuilder()
+    .setColor(colors.success)
+    .setAuthor({ name: `${brandName()} Global Trust & Safety` })
+    .setTitle('✅ Global Block Removed')
+    .setDescription(`${user.tag} was removed from the CyberGuard global blocklist.`)
+    .addFields(
+      { name: 'Account', value: `${user.tag}\n\`${user.id}\``, inline: true },
+      { name: 'Servers updated', value: `${removedServers}`, inline: true },
+      { name: 'Status', value: 'Eligible to rejoin participating servers', inline: false },
+    ), 'Global Enforcement');
+}
+
 export function createServerUpdateEmbed(inviteLink: string) {
   return applyBranding(new EmbedBuilder()
     .setColor(colors.primary)
